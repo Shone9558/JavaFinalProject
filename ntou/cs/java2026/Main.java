@@ -33,16 +33,32 @@ public class Main {
 
         allProducts.sort((p1, p2) -> Double.compare(p1.getPrice(), p2.getPrice()));
 
+        if (allProducts.isEmpty()) {
+            System.out.println("\n查無商品，請換一個關鍵字試試看。");
+            scanner.close();
+            return;
+        }
+
+        System.out.println("\n共找到 " + allProducts.size() + " 筆商品。");
+
+        System.out.print("請輸入最高預算，若不想限制請輸入 0：");
+        double maxPrice = scanner.nextDouble();
+
         System.out.println("\n=== 比價結果：價格由低到高 ===");
 
-        if (allProducts.isEmpty()) {
-            System.out.println("查無商品，請換一個關鍵字試試看。");
-        } else {
-            for (int i = 0; i < allProducts.size(); i++) {
-                System.out.println("第 " + (i + 1) + " 筆");
-                System.out.println(allProducts.get(i));
+        int count = 0;
+
+        for (Product product : allProducts) {
+            if (maxPrice == 0 || product.getPrice() <= maxPrice) {
+                count++;
+                System.out.println("第 " + count + " 筆");
+                System.out.println(product);
                 System.out.println("--------------------------------");
             }
+        }
+
+        if (count == 0) {
+            System.out.println("沒有符合預算的商品。");
         }
 
         scanner.close();
