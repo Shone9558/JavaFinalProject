@@ -50,6 +50,9 @@ public class Main {
                     showFavoriteProducts();
                     break;
                 case 6:
+                    removeFavoriteProduct();
+                    break;
+                case 7:
                     saveFavoriteProducts();
                     System.out.println("收藏商品已儲存。");
                     System.out.println("感謝使用智慧購物比價追蹤器！");
@@ -72,7 +75,8 @@ public class Main {
         System.out.println("3. 價格篩選");
         System.out.println("4. 收藏商品");
         System.out.println("5. 查看收藏商品");
-        System.out.println("6. 離開");
+        System.out.println("6. 刪除指定收藏商品");
+        System.out.println("7. 離開");
     }
 
     private static void searchProducts() {
@@ -292,5 +296,35 @@ public class Main {
         }
 
         return text;
+    }
+
+    private static void removeFavoriteProduct() {
+        if (favoriteProducts.isEmpty()) {
+            System.out.println("目前沒有收藏商品可以刪除。");
+            return;
+        }
+
+        showFavoriteProducts();
+
+        System.out.print("請輸入要刪除的收藏商品編號，輸入 0 取消：");
+        int index = scanner.nextInt();
+        scanner.nextLine();
+
+        if (index == 0) {
+            System.out.println("已取消刪除。");
+            return;
+        }
+
+        if (index < 1 || index > favoriteProducts.size()) {
+            System.out.println("收藏商品編號錯誤。");
+            return;
+        }
+
+        Product removedProduct = favoriteProducts.remove(index - 1);
+
+        saveFavoriteProducts();
+
+        System.out.println("已刪除收藏商品：");
+        System.out.println(removedProduct);
     }
 }
