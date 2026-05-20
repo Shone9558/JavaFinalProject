@@ -4,6 +4,9 @@ import ntou.cs.java2026.crawler.BooksCrawler;
 import ntou.cs.java2026.crawler.PChomeCrawler;
 import ntou.cs.java2026.crawler.MomoCrawler;
 import ntou.cs.java2026.model.Product;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class Main {
@@ -14,26 +17,33 @@ public class Main {
         System.out.print("請輸入搜尋關鍵字：");
         String keyword = scanner.nextLine();
 
-        System.out.println("搜尋關鍵字：" + keyword + "\n");
+        List<Product> allProducts = new ArrayList<>();
 
-        // 博客來
-        System.out.println("【博客來】");
+        System.out.println("\n正在搜尋博客來...");
         BooksCrawler books = new BooksCrawler();
-        for (Product p : books.search(keyword)) System.out.println(p);
+        allProducts.addAll(books.search(keyword));
 
-        System.out.println();
-
-        // PChome
-        System.out.println("【PChome】");
+        System.out.println("正在搜尋 PChome...");
         PChomeCrawler pchome = new PChomeCrawler();
-        for (Product p : pchome.search(keyword)) System.out.println(p);
+        allProducts.addAll(pchome.search(keyword));
 
-        System.out.println();
-
-        // momo
-        System.out.println("【momo】");
+        System.out.println("正在搜尋 momo...");
         MomoCrawler momo = new MomoCrawler();
-        for (Product p : momo.search(keyword)) System.out.println(p);
+        allProducts.addAll(momo.search(keyword));
+
+        allProducts.sort((p1, p2) -> Double.compare(p1.getPrice(), p2.getPrice()));
+
+        System.out.println("\n=== 比價結果：價格由低到高 ===");
+
+        if (allProducts.isEmpty()) {
+            System.out.println("查無商品，請換一個關鍵字試試看。");
+        } else {
+            for (int i = 0; i < allProducts.size(); i++) {
+                System.out.println("第 " + (i + 1) + " 筆");
+                System.out.println(allProducts.get(i));
+                System.out.println("--------------------------------");
+            }
+        }
 
         scanner.close();
     }

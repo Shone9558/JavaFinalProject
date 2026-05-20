@@ -44,6 +44,7 @@ public class Product {
 
     @Override
     public String toString() {
-        return String.format("[%s] %s - NT$%.0f", platform, name, price);
+        return String.format("[%s] %s - NT$%.0f\n網址：%s",
+                platform, name, price, url);
     }
 }
