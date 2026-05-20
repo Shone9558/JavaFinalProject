@@ -11,6 +11,8 @@ import java.util.Scanner;
 
 public class Main {
     private static List<Product> allProducts = new ArrayList<>();
+    private static List<Product> filteredProducts = new ArrayList<>();
+    private static List<Product> favoriteProducts = new ArrayList<>();
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -21,7 +23,7 @@ public class Main {
 
             System.out.print("請選擇功能：");
             int choice = scanner.nextInt();
-            scanner.nextLine(); // 清除換行字元
+            scanner.nextLine();
 
             switch (choice) {
                 case 1:
@@ -34,6 +36,12 @@ public class Main {
                     filterByPrice();
                     break;
                 case 4:
+                    addFavoriteProduct();
+                    break;
+                case 5:
+                    showFavoriteProducts();
+                    break;
+                case 6:
                     System.out.println("感謝使用智慧購物比價追蹤器！");
                     running = false;
                     break;
@@ -52,7 +60,9 @@ public class Main {
         System.out.println("1. 搜尋商品");
         System.out.println("2. 顯示目前搜尋結果");
         System.out.println("3. 價格篩選");
-        System.out.println("4. 離開");
+        System.out.println("4. 收藏商品");
+        System.out.println("5. 查看收藏商品");
+        System.out.println("6. 離開");
     }
 
     private static void searchProducts() {
@@ -60,6 +70,7 @@ public class Main {
         String keyword = scanner.nextLine();
 
         allProducts.clear();
+        filteredProducts.clear();
 
         System.out.println("\n正在搜尋博客來...");
         BooksCrawler books = new BooksCrawler();
@@ -106,23 +117,102 @@ public class Main {
 
         System.out.print("請輸入最高預算，若不想限制請輸入 0：");
         double maxPrice = scanner.nextDouble();
-        scanner.nextLine(); // 清除換行字元
+        scanner.nextLine();
 
-        System.out.println("\n=== 價格篩選結果 ===");
-
-        int count = 0;
+        filteredProducts.clear();
 
         for (Product product : allProducts) {
             if (maxPrice == 0 || product.getPrice() <= maxPrice) {
-                count++;
-                System.out.println("第 " + count + " 筆");
-                System.out.println(product);
-                System.out.println("--------------------------------");
+                filteredProducts.add(product);
             }
         }
 
-        if (count == 0) {
+        System.out.println("\n=== 價格篩選結果 ===");
+
+        if (filteredProducts.isEmpty()) {
             System.out.println("沒有符合預算的商品。");
+            return;
+        }
+
+        for (int i = 0; i < filteredProducts.size(); i++) {
+            System.out.println("第 " + (i + 1) + " 筆");
+            System.out.println(filteredProducts.get(i));
+            System.out.println("--------------------------------");
+        }
+
+        System.out.println("共找到 " + filteredProducts.size() + " 筆符合預算的商品。");
+    }
+
+    private static void addFavoriteProduct() {
+        if (allProducts.isEmpty()) {
+            System.out.println("目前沒有搜尋結果，請先搜尋商品。");
+            return;
+        }
+
+        System.out.println("請選擇收藏來源：");
+        System.out.println("1. 從全部搜尋結果收藏");
+        System.out.println("2. 從價格篩選結果收藏");
+        System.out.print("請選擇：");
+
+        int sourceChoice = scanner.nextInt();
+        scanner.nextLine();
+
+        List<Product> sourceList;
+
+        if (sourceChoice == 1) {
+            sourceList = allProducts;
+        } else if (sourceChoice == 2) {
+            if (filteredProducts.isEmpty()) {
+                System.out.println("目前沒有價格篩選結果，請先使用價格篩選功能。");
+                return;
+            }
+            sourceList = filteredProducts;
+        } else {
+            System.out.println("輸入錯誤，已取消收藏。");
+            return;
+        }
+
+        System.out.println("\n=== 可收藏商品列表 ===");
+
+        for (int i = 0; i < sourceList.size(); i++) {
+            System.out.println("第 " + (i + 1) + " 筆");
+            System.out.println(sourceList.get(i));
+            System.out.println("--------------------------------");
+        }
+
+        System.out.print("請輸入要收藏的商品編號，輸入 0 取消：");
+        int index = scanner.nextInt();
+        scanner.nextLine();
+
+        if (index == 0) {
+            System.out.println("已取消收藏。");
+            return;
+        }
+
+        if (index < 1 || index > sourceList.size()) {
+            System.out.println("商品編號錯誤。");
+            return;
+        }
+
+        Product selectedProduct = sourceList.get(index - 1);
+        favoriteProducts.add(selectedProduct);
+
+        System.out.println("已收藏商品：");
+        System.out.println(selectedProduct);
+    }
+
+    private static void showFavoriteProducts() {
+        if (favoriteProducts.isEmpty()) {
+            System.out.println("目前沒有收藏商品。");
+            return;
+        }
+
+        System.out.println("=== 我的收藏商品 ===");
+
+        for (int i = 0; i < favoriteProducts.size(); i++) {
+            System.out.println("第 " + (i + 1) + " 筆");
+            System.out.println(favoriteProducts.get(i));
+            System.out.println("--------------------------------");
         }
     }
 }
