@@ -9,6 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+
 public class Main {
     private static List<Product> allProducts = new ArrayList<>();
     private static List<Product> filteredProducts = new ArrayList<>();
@@ -16,6 +22,8 @@ public class Main {
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
+        loadFavoriteProducts();
+
         boolean running = true;
 
         while (running) {
@@ -42,6 +50,8 @@ public class Main {
                     showFavoriteProducts();
                     break;
                 case 6:
+                    saveFavoriteProducts();
+                    System.out.println("收藏商品已儲存。");
                     System.out.println("感謝使用智慧購物比價追蹤器！");
                     running = false;
                     break;
@@ -214,5 +224,73 @@ public class Main {
             System.out.println(favoriteProducts.get(i));
             System.out.println("--------------------------------");
         }
+    }
+
+    private static void saveFavoriteProducts() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("favorites.csv"))) {
+            writer.write("platform,name,price,url,imageUrl");
+            writer.newLine();
+
+            for (Product product : favoriteProducts) {
+                writer.write(toCsvLine(product));
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("儲存收藏商品失敗：" + e.getMessage());
+        }
+    }
+
+    private static void loadFavoriteProducts() {
+        try (BufferedReader reader = new BufferedReader(new FileReader("favorites.csv"))) {
+            String line = reader.readLine(); // 讀掉標題列
+
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(",", -1);
+
+                if (data.length < 5) {
+                    continue;
+                }
+
+                String platform = data[0];
+                String name = data[1];
+                double price = Double.parseDouble(data[2]);
+                String url = data[3];
+                String imageUrl = data[4];
+
+                Product product = new Product(name, price, platform, url, imageUrl);
+                favoriteProducts.add(product);
+            }
+
+            if (!favoriteProducts.isEmpty()) {
+                System.out.println("已載入 " + favoriteProducts.size() + " 筆收藏商品。");
+            }
+
+        } catch (IOException e) {
+            // 第一次執行通常還沒有 favorites.csv，這是正常情況
+        } catch (NumberFormatException e) {
+            System.out.println("收藏商品檔案格式錯誤，部分資料無法讀取。");
+        }
+    }
+
+    private static String toCsvLine(Product product) {
+        return escapeCsv(product.getPlatform()) + ","
+                + escapeCsv(product.getName()) + ","
+                + product.getPrice() + ","
+                + escapeCsv(product.getUrl()) + ","
+                + escapeCsv(product.getImageUrl());
+    }
+
+    private static String escapeCsv(String text) {
+        if (text == null) {
+            return "";
+        }
+
+        text = text.replace("\"", "\"\"");
+
+        if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
+            text = "\"" + text + "\"";
+        }
+
+        return text;
     }
 }

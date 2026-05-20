@@ -17,10 +17,15 @@ public class Product {
     public Product() {}
 
     public Product(String name, double price, String platform, String url) {
+        this(name, price, platform, url, "");
+    }
+
+    public Product(String name, double price, String platform, String url, String imageUrl) {
         this.name = name;
         this.price = price;
         this.platform = platform;
         this.url = url;
+        this.imageUrl = imageUrl;
     }
 
     // ── Getter / Setter ──────────────────────────────────────
