@@ -20,10 +20,12 @@ public class Main {
     private static List<Product> filteredProducts = new ArrayList<>();
     private static List<Product> platformFilteredProducts = new ArrayList<>();
     private static List<Product> favoriteProducts = new ArrayList<>();
+    private static List<String> searchHistory = new ArrayList<>();
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
         loadFavoriteProducts();
+        loadSearchHistory();
 
         boolean running = true;
 
@@ -57,6 +59,9 @@ public class Main {
                     removeFavoriteProduct();
                     break;
                 case 8:
+                    showSearchHistory();
+                    break;
+                case 9:
                     saveFavoriteProducts();
                     System.out.println("收藏商品已儲存。");
                     System.out.println("感謝使用智慧購物比價追蹤器！");
@@ -81,12 +86,18 @@ public class Main {
         System.out.println("5. 收藏商品");
         System.out.println("6. 查看收藏商品");
         System.out.println("7. 刪除指定收藏商品");
-        System.out.println("8. 離開");
+        System.out.println("8. 查看搜尋歷史");
+        System.out.println("9. 離開");
     }
 
     private static void searchProducts() {
         System.out.print("請輸入搜尋關鍵字：");
         String keyword = scanner.nextLine();
+
+        if (!keyword.trim().isEmpty() && !searchHistory.contains(keyword)) {
+            searchHistory.add(keyword);
+            saveSearchHistory();
+        }
 
         allProducts.clear();
         filteredProducts.clear();
@@ -111,6 +122,49 @@ public class Main {
         } else {
             System.out.println("\n搜尋完成，共找到 " + allProducts.size() + " 筆商品。");
             System.out.println("商品已依價格由低到高排序。");
+        }
+    }
+
+    private static void saveSearchHistory() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("search_history.txt"))) {
+            for (String keyword : searchHistory) {
+                writer.write(keyword);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("儲存搜尋歷史失敗：" + e.getMessage());
+        }
+    }
+
+    private static void loadSearchHistory() {
+        try (BufferedReader reader = new BufferedReader(new FileReader("search_history.txt"))) {
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    searchHistory.add(line);
+                }
+            }
+
+            if (!searchHistory.isEmpty()) {
+                System.out.println("已載入 " + searchHistory.size() + " 筆搜尋歷史紀錄。");
+            }
+
+        } catch (IOException e) {
+            // 第一次執行通常還沒有 search_history.txt，這是正常情況
+        }
+    }
+
+    private static void showSearchHistory() {
+        if (searchHistory.isEmpty()) {
+            System.out.println("目前沒有搜尋歷史紀錄。");
+            return;
+        }
+
+        System.out.println("=== 搜尋歷史紀錄 ===");
+
+        for (int i = 0; i < searchHistory.size(); i++) {
+            System.out.println((i + 1) + ". " + searchHistory.get(i));
         }
     }
 
