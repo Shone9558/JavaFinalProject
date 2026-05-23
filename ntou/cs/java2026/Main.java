@@ -86,7 +86,7 @@ public class Main {
         System.out.println("=== 智慧購物比價追蹤器 ===");
         System.out.println("1. 搜尋商品");
         System.out.println("2. 顯示目前搜尋結果");
-        System.out.println("3. 價格篩選");
+        System.out.println("3. 價格區間篩選");
         System.out.println("4. 平台篩選");
         System.out.println("5. 收藏商品");
         System.out.println("6. 查看收藏商品");
@@ -224,14 +224,32 @@ public class Main {
             return;
         }
 
-        System.out.print("請輸入最高預算，若不想限制請輸入 0：");
+        System.out.print("請輸入最低價格，若不限制請輸入 0：");
+        double minPrice = scanner.nextDouble();
+
+        System.out.print("請輸入最高價格，若不限制請輸入 0：");
         double maxPrice = scanner.nextDouble();
         scanner.nextLine();
+
+        if (minPrice < 0 || maxPrice < 0) {
+            System.out.println("價格不能是負數。");
+            return;
+        }
+
+        if (maxPrice != 0 && minPrice > maxPrice) {
+            System.out.println("最低價格不能大於最高價格。");
+            return;
+        }
 
         filteredProducts.clear();
 
         for (Product product : allProducts) {
-            if (maxPrice == 0 || product.getPrice() <= maxPrice) {
+            double price = product.getPrice();
+
+            boolean matchMin = minPrice == 0 || price >= minPrice;
+            boolean matchMax = maxPrice == 0 || price <= maxPrice;
+
+            if (matchMin && matchMax) {
                 filteredProducts.add(product);
             }
         }
