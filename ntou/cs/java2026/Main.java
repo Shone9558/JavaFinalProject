@@ -62,8 +62,13 @@ public class Main {
                     showSearchHistory();
                     break;
                 case 9:
+                    removeSearchHistory();
+                    break;
+                case 10:
                     saveFavoriteProducts();
+                    saveSearchHistory();
                     System.out.println("收藏商品已儲存。");
+                    System.out.println("搜尋歷史已儲存。");
                     System.out.println("感謝使用智慧購物比價追蹤器！");
                     running = false;
                     break;
@@ -87,7 +92,8 @@ public class Main {
         System.out.println("6. 查看收藏商品");
         System.out.println("7. 刪除指定收藏商品");
         System.out.println("8. 查看搜尋歷史");
-        System.out.println("9. 離開");
+        System.out.println("9. 刪除指定搜尋歷史");
+        System.out.println("10. 離開");
     }
 
     private static void searchProducts() {
@@ -134,6 +140,35 @@ public class Main {
         } catch (IOException e) {
             System.out.println("儲存搜尋歷史失敗：" + e.getMessage());
         }
+    }
+
+    private static void removeSearchHistory() {
+        if (searchHistory.isEmpty()) {
+            System.out.println("目前沒有搜尋歷史可以刪除。");
+            return;
+        }
+
+        showSearchHistory();
+
+        System.out.print("請輸入要刪除的搜尋歷史編號，輸入 0 取消：");
+        int index = scanner.nextInt();
+        scanner.nextLine();
+
+        if (index == 0) {
+            System.out.println("已取消刪除。");
+            return;
+        }
+
+        if (index < 1 || index > searchHistory.size()) {
+            System.out.println("搜尋歷史編號錯誤。");
+            return;
+        }
+
+        String removedKeyword = searchHistory.remove(index - 1);
+
+        saveSearchHistory();
+
+        System.out.println("已刪除搜尋歷史：" + removedKeyword);
     }
 
     private static void loadSearchHistory() {
