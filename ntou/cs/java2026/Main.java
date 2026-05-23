@@ -18,6 +18,7 @@ import java.io.IOException;
 public class Main {
     private static List<Product> allProducts = new ArrayList<>();
     private static List<Product> filteredProducts = new ArrayList<>();
+    private static List<Product> platformFilteredProducts = new ArrayList<>();
     private static List<Product> favoriteProducts = new ArrayList<>();
     private static Scanner scanner = new Scanner(System.in);
 
@@ -44,15 +45,18 @@ public class Main {
                     filterByPrice();
                     break;
                 case 4:
-                    addFavoriteProduct();
+                    filterByPlatform();
                     break;
                 case 5:
-                    showFavoriteProducts();
+                    addFavoriteProduct();
                     break;
                 case 6:
-                    removeFavoriteProduct();
+                    showFavoriteProducts();
                     break;
                 case 7:
+                    removeFavoriteProduct();
+                    break;
+                case 8:
                     saveFavoriteProducts();
                     System.out.println("收藏商品已儲存。");
                     System.out.println("感謝使用智慧購物比價追蹤器！");
@@ -73,10 +77,11 @@ public class Main {
         System.out.println("1. 搜尋商品");
         System.out.println("2. 顯示目前搜尋結果");
         System.out.println("3. 價格篩選");
-        System.out.println("4. 收藏商品");
-        System.out.println("5. 查看收藏商品");
-        System.out.println("6. 刪除指定收藏商品");
-        System.out.println("7. 離開");
+        System.out.println("4. 平台篩選");
+        System.out.println("5. 收藏商品");
+        System.out.println("6. 查看收藏商品");
+        System.out.println("7. 刪除指定收藏商品");
+        System.out.println("8. 離開");
     }
 
     private static void searchProducts() {
@@ -85,6 +90,7 @@ public class Main {
 
         allProducts.clear();
         filteredProducts.clear();
+        platformFilteredProducts.clear();
 
         System.out.println("\n正在搜尋博客來...");
         BooksCrawler books = new BooksCrawler();
@@ -157,6 +163,62 @@ public class Main {
         System.out.println("共找到 " + filteredProducts.size() + " 筆符合預算的商品。");
     }
 
+    private static void filterByPlatform() {
+        if (allProducts.isEmpty()) {
+            System.out.println("目前沒有搜尋結果，請先搜尋商品。");
+            return;
+        }
+
+        System.out.println("請選擇平台篩選：");
+        System.out.println("1. 博客來");
+        System.out.println("2. PChome");
+        System.out.println("3. momo");
+        System.out.print("請輸入選項：");
+
+        int choice = scanner.nextInt();
+        scanner.nextLine();
+
+        String selectedPlatform;
+
+        switch (choice) {
+            case 1:
+                selectedPlatform = "博客來";
+                break;
+            case 2:
+                selectedPlatform = "PChome";
+                break;
+            case 3:
+                selectedPlatform = "momo";
+                break;
+            default:
+                System.out.println("輸入錯誤，已取消平台篩選。");
+                return;
+        }
+
+        platformFilteredProducts.clear();
+
+        for (Product product : allProducts) {
+            if (product.getPlatform().equals(selectedPlatform)) {
+                platformFilteredProducts.add(product);
+            }
+        }
+
+        if (platformFilteredProducts.isEmpty()) {
+            System.out.println("該平台沒有搜尋到商品。");
+            return;
+        }
+
+        System.out.println("=== " + selectedPlatform + " 商品結果 ===");
+
+        for (int i = 0; i < platformFilteredProducts.size(); i++) {
+            System.out.println("第 " + (i + 1) + " 筆");
+            System.out.println(platformFilteredProducts.get(i));
+            System.out.println("--------------------------------");
+        }
+
+        System.out.println("共找到 " + platformFilteredProducts.size() + " 筆 " + selectedPlatform + " 商品。");
+    }
+
     private static void addFavoriteProduct() {
         if (allProducts.isEmpty()) {
             System.out.println("目前沒有搜尋結果，請先搜尋商品。");
@@ -166,6 +228,7 @@ public class Main {
         System.out.println("請選擇收藏來源：");
         System.out.println("1. 從全部搜尋結果收藏");
         System.out.println("2. 從價格篩選結果收藏");
+        System.out.println("3. 從平台篩選結果收藏");
         System.out.print("請選擇：");
 
         int sourceChoice = scanner.nextInt();
@@ -181,16 +244,35 @@ public class Main {
                 return;
             }
             sourceList = filteredProducts;
+        } else if (sourceChoice == 3) {
+            if (platformFilteredProducts.isEmpty()) {
+                System.out.println("目前沒有平台篩選結果，請先使用平台篩選功能。");
+                return;
+            }
+            sourceList = platformFilteredProducts;
         } else {
             System.out.println("輸入錯誤，已取消收藏。");
             return;
         }
 
+        List<Product> availableProducts = new ArrayList<>();
+
+        for (Product product : sourceList) {
+            if (!isAlreadyFavorite(product)) {
+                availableProducts.add(product);
+            }
+        }
+
+        if (availableProducts.isEmpty()) {
+            System.out.println("此清單中的商品都已經收藏過了。");
+            return;
+        }
+
         System.out.println("\n=== 可收藏商品列表 ===");
 
-        for (int i = 0; i < sourceList.size(); i++) {
+        for (int i = 0; i < availableProducts.size(); i++) {
             System.out.println("第 " + (i + 1) + " 筆");
-            System.out.println(sourceList.get(i));
+            System.out.println(availableProducts.get(i));
             System.out.println("--------------------------------");
         }
 
@@ -203,16 +285,28 @@ public class Main {
             return;
         }
 
-        if (index < 1 || index > sourceList.size()) {
+        if (index < 1 || index > availableProducts.size()) {
             System.out.println("商品編號錯誤。");
             return;
         }
 
-        Product selectedProduct = sourceList.get(index - 1);
+        Product selectedProduct = availableProducts.get(index - 1);
+
         favoriteProducts.add(selectedProduct);
+        saveFavoriteProducts();
 
         System.out.println("已收藏商品：");
         System.out.println(selectedProduct);
+    }
+
+    private static boolean isAlreadyFavorite(Product product) {
+        for (Product favorite : favoriteProducts) {
+            if (favorite.getUrl().equals(product.getUrl())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void showFavoriteProducts() {
