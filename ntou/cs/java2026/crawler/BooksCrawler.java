@@ -8,6 +8,7 @@ import org.jsoup.select.Elements;
 
 import java.util.ArrayList;
 import java.util.List;
+import ntou.cs.java2026.util.ProductMatcher;
 
 /**
  * 博客來爬蟲
@@ -46,6 +47,9 @@ public class BooksCrawler extends BaseCrawler {
                     Element nameEl = item.selectFirst("h4 a");
                     if (nameEl == null) continue;
                     String name = nameEl.text().trim();
+                    if (!ProductMatcher.isRelevant(name, keyword)) {
+                        continue;
+                    }
 
                     // 抓商品網址
                     String productUrl = nameEl.attr("abs:href");

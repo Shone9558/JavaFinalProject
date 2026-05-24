@@ -1,6 +1,7 @@
 package ntou.cs.java2026.crawler;
 
 import ntou.cs.java2026.model.Product;
+import ntou.cs.java2026.util.ProductMatcher;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -12,10 +13,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * PChome 爬蟲
- * 使用 PChome 公開 JSON API 取得商品資料
- */
 public class PChomeCrawler extends BaseCrawler {
 
     private static final String API_URL =
@@ -34,42 +31,53 @@ public class PChomeCrawler extends BaseCrawler {
             String encodedKeyword = java.net.URLEncoder.encode(keyword, "UTF-8");
             String apiUrl = String.format(API_URL, encodedKeyword);
 
-            // 建立 HTTP 連線
             HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("User-Agent", USER_AGENT);
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
 
-            // 讀取回傳的 JSON 字串
             BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream(), "UTF-8")
+                    new InputStreamReader(conn.getInputStream(), "UTF-8")
             );
+
             StringBuilder sb = new StringBuilder();
             String line;
+
             while ((line = reader.readLine()) != null) {
                 sb.append(line);
             }
+
             reader.close();
 
-            // 用 Gson 解析 JSON
             JsonObject root = JsonParser.parseString(sb.toString()).getAsJsonObject();
             JsonArray prods = root.getAsJsonArray("prods");
-            if (prods == null) return results;
+
+            if (prods == null) {
+                return results;
+            }
 
             for (int i = 0; i < prods.size() && results.size() < MAX_RESULTS; i++) {
                 try {
                     JsonObject prod = prods.get(i).getAsJsonObject();
 
                     String name = prod.get("name").getAsString();
+
+                    if (!ProductMatcher.isRelevant(name, keyword)) {
+                        continue;
+                    }
+
                     double price = prod.get("price").getAsDouble();
+
+                    if (price <= 0) {
+                        continue;
+                    }
+
                     String prodId = prod.get("Id").getAsString();
                     String productUrl = "https://24h.pchome.com.tw/prod/" + prodId;
 
-                    // 圖片網址
                     String picB = prod.has("picB") ? prod.get("picB").getAsString() : "";
-                    String imageUrl = picB.isEmpty() ? "" :
-                        "https://a.ecimg.tw" + picB;
+                    String imageUrl = picB.isEmpty() ? "" : "https://a.ecimg.tw" + picB;
 
                     Product product = new Product(name, price, getPlatformName(), productUrl);
                     product.setImageUrl(imageUrl);

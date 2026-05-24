@@ -10,6 +10,7 @@ import org.jsoup.nodes.Element;
 
 import java.util.ArrayList;
 import java.util.List;
+import ntou.cs.java2026.util.ProductMatcher;
 
 /**
  * momo 爬蟲
@@ -60,6 +61,9 @@ public class MomoCrawler extends BaseCrawler {
                         JsonObject item = items.get(j).getAsJsonObject();
 
                         String name = item.get("name").getAsString();
+                        if (!ProductMatcher.isRelevant(name, keyword)) {
+                            continue;
+                        }
                         String productUrl = item.get("url").getAsString();
                         String imageUrl = item.has("image") ? item.get("image").getAsString() : "";
 
