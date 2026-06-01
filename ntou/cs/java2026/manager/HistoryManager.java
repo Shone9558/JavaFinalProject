@@ -1,5 +1,7 @@
 package ntou.cs.java2026.manager;
 
+import ntou.cs.java2026.db.DatabaseManager;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileReader;
@@ -86,6 +88,8 @@ public class HistoryManager {
 
     public void saveSearchHistory() {
 
+        DatabaseManager.saveHistory(searchHistory);
+
         try (
                 BufferedWriter writer =
                         new BufferedWriter(
@@ -110,6 +114,14 @@ public class HistoryManager {
     }
 
     public void loadSearchHistory() {
+
+        if (DatabaseManager.isAvailable()) {
+            searchHistory.addAll(DatabaseManager.loadHistory());
+            if (!searchHistory.isEmpty()) {
+                System.out.println("已從 SQLite 載入 " + searchHistory.size() + " 筆搜尋歷史紀錄。");
+            }
+            return;
+        }
 
         try (
                 BufferedReader reader =

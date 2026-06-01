@@ -1,6 +1,7 @@
 package ntou.cs.java2026.manager;
 
 import ntou.cs.java2026.model.Product;
+import ntou.cs.java2026.db.DatabaseManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -214,6 +215,8 @@ public class FavoriteManager {
 
     public void saveFavoriteProducts() {
 
+        DatabaseManager.saveFavorites(favoriteProducts);
+
         try (
                 BufferedWriter writer =
                         new BufferedWriter(
@@ -244,6 +247,14 @@ public class FavoriteManager {
     }
 
     public void loadFavoriteProducts() {
+
+        if (DatabaseManager.isAvailable()) {
+            favoriteProducts.addAll(DatabaseManager.loadFavorites());
+            if (!favoriteProducts.isEmpty()) {
+                System.out.println("已從 SQLite 載入 " + favoriteProducts.size() + " 筆收藏商品。");
+            }
+            return;
+        }
 
         try (
                 BufferedReader reader =

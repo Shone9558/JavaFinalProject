@@ -2,3 +2,6 @@
 bin/
 out/
 target/
+.vscode/
+shopping_tracker.db
+*.db-journal

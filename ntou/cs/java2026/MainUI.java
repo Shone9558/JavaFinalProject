@@ -11,10 +11,17 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
+import java.net.URL;
+import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -31,11 +38,15 @@ public class MainUI extends JFrame {
     private final JButton searchButton = new JButton("搜尋商品");
     private final JButton favoriteButton = new JButton("加入收藏");
     private final JButton deleteFavoriteButton = new JButton("刪除收藏");
+    private final JButton refreshFavoritePriceButton = new JButton("重新整理收藏價格");
+    private final JButton exportFavoriteCsvButton = new JButton("匯出收藏 CSV");
     private final JButton openButton = new JButton("開啟商品頁");
     private final JButton useHistoryButton = new JButton("用此關鍵字搜尋");
     private final JButton deleteHistoryButton = new JButton("刪除搜尋歷史");
     private final JButton clearHistoryButton = new JButton("清空搜尋歷史");
     private final JLabel statusLabel = new JLabel("請輸入關鍵字開始搜尋");
+    private final JLabel imageLabel = new JLabel("選取商品後顯示圖片", SwingConstants.CENTER);
+    private final JLabel imageTitleLabel = new JLabel("商品圖片", SwingConstants.CENTER);
 
     private final DefaultListModel<String> historyListModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyListModel);
@@ -160,7 +171,11 @@ public class MainUI extends JFrame {
         tabs.addTab("我的收藏", favoritePanel);
         tabs.addTab("搜尋歷史", historyPanel);
 
-        root.add(tabs, BorderLayout.CENTER);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tabs, createImagePanel());
+        splitPane.setResizeWeight(0.78);
+        splitPane.setBorder(null);
+        splitPane.setOpaque(false);
+        root.add(splitPane, BorderLayout.CENTER);
 
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         bottomPanel.setOpaque(false);
@@ -170,8 +185,12 @@ public class MainUI extends JFrame {
         styleSecondaryButton(favoriteButton);
         styleSecondaryButton(openButton);
         styleSecondaryButton(deleteFavoriteButton);
+        styleSecondaryButton(refreshFavoritePriceButton);
+        styleSecondaryButton(exportFavoriteCsvButton);
         buttonPanel.add(favoriteButton);
         buttonPanel.add(deleteFavoriteButton);
+        buttonPanel.add(refreshFavoritePriceButton);
+        buttonPanel.add(exportFavoriteCsvButton);
         buttonPanel.add(openButton);
 
         statusLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
@@ -196,6 +215,25 @@ public class MainUI extends JFrame {
         JPanel panel = createCardPanel();
         panel.setLayout(new BorderLayout());
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createImagePanel() {
+        JPanel panel = createCardPanel();
+        panel.setPreferredSize(new Dimension(250, 0));
+        panel.setLayout(new BorderLayout(8, 8));
+
+        imageTitleLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 15));
+        imageTitleLabel.setForeground(new Color(35, 48, 68));
+        panel.add(imageTitleLabel, BorderLayout.NORTH);
+
+        imageLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
+        imageLabel.setForeground(new Color(95, 105, 120));
+        imageLabel.setBorder(BorderFactory.createLineBorder(new Color(225, 230, 238)));
+        imageLabel.setOpaque(true);
+        imageLabel.setBackground(Color.WHITE);
+        panel.add(imageLabel, BorderLayout.CENTER);
+
         return panel;
     }
 
@@ -262,6 +300,8 @@ public class MainUI extends JFrame {
         searchButton.addActionListener(e -> searchProducts());
         favoriteButton.addActionListener(e -> addFavorite());
         deleteFavoriteButton.addActionListener(e -> removeFavorite());
+        refreshFavoritePriceButton.addActionListener(e -> refreshFavoritePrices());
+        exportFavoriteCsvButton.addActionListener(e -> exportFavoritesCsv());
         openButton.addActionListener(e -> openSelectedProduct());
         useHistoryButton.addActionListener(e -> searchFromSelectedHistory());
         deleteHistoryButton.addActionListener(e -> deleteSelectedHistory());
@@ -277,6 +317,20 @@ public class MainUI extends JFrame {
         };
         resultTable.addMouseListener(openByDoubleClick);
         favoriteTable.addMouseListener(openByDoubleClick);
+
+        resultTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && resultTable.getSelectedRow() >= 0) {
+                favoriteTable.clearSelection();
+                showProductImage(allProducts.get(resultTable.getSelectedRow()));
+            }
+        });
+
+        favoriteTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && favoriteTable.getSelectedRow() >= 0) {
+                resultTable.clearSelection();
+                showProductImage(favoriteProducts.get(favoriteTable.getSelectedRow()));
+            }
+        });
 
         historyList.addMouseListener(new MouseAdapter() {
             @Override
@@ -317,6 +371,8 @@ public class MainUI extends JFrame {
         favoriteButton.setEnabled(false);
         openButton.setEnabled(false);
         deleteFavoriteButton.setEnabled(false);
+        refreshFavoritePriceButton.setEnabled(false);
+        exportFavoriteCsvButton.setEnabled(false);
         resultModel.setRowCount(0);
         allProducts.clear();
         statusLabel.setText("準備搜尋，請稍候...");
@@ -383,6 +439,8 @@ public class MainUI extends JFrame {
                     favoriteButton.setEnabled(true);
                     openButton.setEnabled(true);
                     deleteFavoriteButton.setEnabled(true);
+                    refreshFavoritePriceButton.setEnabled(true);
+                    exportFavoriteCsvButton.setEnabled(true);
                 }
             }
         };
@@ -577,6 +635,241 @@ public class MainUI extends JFrame {
         favoriteManager.saveFavoriteProducts();
         refreshFavoriteTable();
         statusLabel.setText("已刪除收藏：" + selected.getName());
+    }
+
+    private void refreshFavoritePrices() {
+        if (favoriteProducts.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以更新", "重新整理收藏價格", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int option = JOptionPane.showConfirmDialog(
+                this,
+                "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？",
+                "重新整理收藏價格",
+                JOptionPane.YES_NO_OPTION
+        );
+        if (option != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        searchButton.setEnabled(false);
+        favoriteButton.setEnabled(false);
+        deleteFavoriteButton.setEnabled(false);
+        refreshFavoritePriceButton.setEnabled(false);
+        exportFavoriteCsvButton.setEnabled(false);
+        openButton.setEnabled(false);
+        statusLabel.setText("正在重新整理收藏價格...");
+
+        SwingWorker<Integer, String> worker = new SwingWorker<>() {
+            @Override
+            protected Integer doInBackground() {
+                int updatedCount = 0;
+
+                for (int i = 0; i < favoriteProducts.size(); i++) {
+                    Product oldProduct = favoriteProducts.get(i);
+                    publish("正在更新收藏價格：" + oldProduct.getName());
+
+                    try {
+                        List<Product> candidates = searchSamePlatform(oldProduct);
+                        Product matched = findBestMatch(oldProduct, candidates);
+                        if (matched != null) {
+                            oldProduct.setPrice(matched.getPrice());
+                            if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty()) {
+                                oldProduct.setImageUrl(matched.getImageUrl());
+                            }
+                            if (matched.getUrl() != null && !matched.getUrl().isEmpty()) {
+                                oldProduct.setUrl(matched.getUrl());
+                            }
+                            updatedCount++;
+                        }
+                    } catch (Exception ex) {
+                        publish("更新失敗，已略過：" + oldProduct.getName());
+                    }
+                }
+
+                return updatedCount;
+            }
+
+            @Override
+            protected void process(List<String> chunks) {
+                if (!chunks.isEmpty()) {
+                    statusLabel.setText(chunks.get(chunks.size() - 1));
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    int updatedCount = get();
+                    favoriteManager.saveFavoriteProducts();
+                    refreshFavoriteTable();
+                    statusLabel.setText("收藏價格更新完成，共更新 " + updatedCount + " 筆商品");
+                    JOptionPane.showMessageDialog(MainUI.this, "收藏價格更新完成，共更新 " + updatedCount + " 筆商品。", "重新整理收藏價格", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(MainUI.this, "更新收藏價格失敗：" + ex.getMessage(), "錯誤", JOptionPane.ERROR_MESSAGE);
+                    statusLabel.setText("更新收藏價格失敗");
+                } finally {
+                    searchButton.setEnabled(true);
+                    favoriteButton.setEnabled(true);
+                    deleteFavoriteButton.setEnabled(true);
+                    refreshFavoritePriceButton.setEnabled(true);
+                    exportFavoriteCsvButton.setEnabled(true);
+                    openButton.setEnabled(true);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+
+    private List<Product> searchSamePlatform(Product product) {
+        String platform = product.getPlatform();
+        String keyword = simplifyKeyword(product.getName());
+
+        if ("博客來".equalsIgnoreCase(platform)) {
+            return new BooksCrawler().search(keyword);
+        }
+        if ("PChome".equalsIgnoreCase(platform)) {
+            return new PChomeCrawler().search(keyword);
+        }
+        if ("momo".equalsIgnoreCase(platform)) {
+            return new MomoCrawler().search(keyword);
+        }
+        return new ArrayList<>();
+    }
+
+    private String simplifyKeyword(String name) {
+        if (name == null) return "";
+        String cleaned = name.replaceAll("[【】\\[\\]（）(){}<>].*?[【】\\[\\]（）(){}<>]?", " ").trim();
+        if (cleaned.length() > 35) {
+            cleaned = cleaned.substring(0, 35);
+        }
+        return cleaned.trim().isEmpty() ? name : cleaned;
+    }
+
+    private Product findBestMatch(Product oldProduct, List<Product> candidates) {
+        if (candidates == null || candidates.isEmpty()) return null;
+
+        for (Product candidate : candidates) {
+            if (isSameProduct(oldProduct, candidate)) {
+                return candidate;
+            }
+        }
+
+        String oldName = oldProduct.getName() == null ? "" : oldProduct.getName().toLowerCase();
+        for (Product candidate : candidates) {
+            String candidateName = candidate.getName() == null ? "" : candidate.getName().toLowerCase();
+            if (!candidateName.isEmpty() && (oldName.contains(candidateName) || candidateName.contains(oldName))) {
+                return candidate;
+            }
+        }
+
+        return candidates.get(0);
+    }
+
+    private void exportFavoritesCsv() {
+        if (favoriteProducts.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以匯出", "匯出收藏 CSV", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("匯出收藏商品 CSV");
+        chooser.setSelectedFile(new File("favorites_export.csv"));
+
+        int result = chooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File file = chooser.getSelectedFile();
+        if (!file.getName().toLowerCase().endsWith(".csv")) {
+            file = new File(file.getParentFile(), file.getName() + ".csv");
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            writer.write("platform,name,price,url,imageUrl");
+            writer.newLine();
+            for (Product product : favoriteProducts) {
+                writer.write(toCsvLine(product));
+                writer.newLine();
+            }
+            JOptionPane.showMessageDialog(this, "收藏商品已匯出到：\n" + file.getAbsolutePath(), "匯出完成", JOptionPane.INFORMATION_MESSAGE);
+            statusLabel.setText("已匯出收藏 CSV：" + file.getName());
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "匯出 CSV 失敗：" + ex.getMessage(), "匯出錯誤", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private String toCsvLine(Product product) {
+        return escapeCsv(product.getPlatform()) + "," +
+                escapeCsv(product.getName()) + "," +
+                product.getPrice() + "," +
+                escapeCsv(product.getUrl()) + "," +
+                escapeCsv(product.getImageUrl());
+    }
+
+    private String escapeCsv(String text) {
+        if (text == null) return "";
+        text = text.replace("\"", "\"\"");
+        if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
+            return "\"" + text + "\"";
+        }
+        return text;
+    }
+
+    private void showProductImage(Product product) {
+        if (product == null) {
+            imageLabel.setIcon(null);
+            imageLabel.setText("選取商品後顯示圖片");
+            return;
+        }
+
+        String imageUrl = product.getImageUrl();
+        imageTitleLabel.setText("商品圖片");
+        imageLabel.setIcon(null);
+
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            imageLabel.setText("此商品沒有圖片網址");
+            return;
+        }
+
+        imageLabel.setText("圖片載入中...");
+        SwingWorker<ImageIcon, Void> worker = new SwingWorker<>() {
+            @Override
+            protected ImageIcon doInBackground() throws Exception {
+                BufferedImage image = ImageIO.read(new URL(imageUrl));
+                if (image == null) return null;
+                Image scaled = scaleImage(image, 220, 260);
+                return new ImageIcon(scaled);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ImageIcon icon = get();
+                    if (icon == null) {
+                        imageLabel.setText("圖片無法載入");
+                        return;
+                    }
+                    imageLabel.setText("");
+                    imageLabel.setIcon(icon);
+                } catch (Exception ex) {
+                    imageLabel.setText("圖片載入失敗");
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private Image scaleImage(BufferedImage image, int maxWidth, int maxHeight) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        double scale = Math.min((double) maxWidth / width, (double) maxHeight / height);
+        int newWidth = Math.max(1, (int) (width * scale));
+        int newHeight = Math.max(1, (int) (height * scale));
+        return image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
     }
 
     private void openSelectedProduct() {
