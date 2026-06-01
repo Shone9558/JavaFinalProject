@@ -32,6 +32,7 @@ public class MainUI extends JFrame {
     private final JButton deleteFavoriteButton = new JButton("刪除收藏");
     private final JButton openButton = new JButton("開啟商品頁");
     private final JLabel statusLabel = new JLabel("請輸入關鍵字開始搜尋");
+    private final JLabel lowestPriceLabel = new JLabel("最低價商品：尚未搜尋");
 
     private final DefaultTableModel resultModel = new DefaultTableModel(new String[]{"平台", "商品名稱", "價格", "網址"}, 0) {
         @Override
@@ -143,6 +144,11 @@ public class MainUI extends JFrame {
         setupTable(favoriteTable);
 
         JPanel resultPanel = createTablePanel(resultTable);
+        lowestPriceLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 14));
+        lowestPriceLabel.setForeground(new Color(35, 48, 68));
+        lowestPriceLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
+        resultPanel.add(lowestPriceLabel, BorderLayout.NORTH);
+
         JPanel favoritePanel = createTablePanel(favoriteTable);
 
         tabs.addTab("搜尋結果", resultPanel);
@@ -241,31 +247,76 @@ public class MainUI extends JFrame {
     private void searchProducts() {
         String keyword = keywordField.getText().trim();
         if (keyword.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "請先輸入搜尋關鍵字");
+            JOptionPane.showMessageDialog(this, "請先輸入搜尋關鍵字", "輸入提醒", JOptionPane.WARNING_MESSAGE);
+            keywordField.requestFocus();
+            return;
+        }
+
+        if (!booksCheck.isSelected() && !pchomeCheck.isSelected() && !momoCheck.isSelected()) {
+            JOptionPane.showMessageDialog(this, "請至少選擇一個搜尋平台", "平台提醒", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            double min = parseOptionalPrice(minPriceField.getText(), "最低價格");
+            double max = parseOptionalPrice(maxPriceField.getText(), "最高價格");
+            if (min > 0 && max > 0 && min > max) {
+                JOptionPane.showMessageDialog(this, "最低價格不能大於最高價格", "價格提醒", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "價格格式錯誤", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         searchButton.setEnabled(false);
+        favoriteButton.setEnabled(false);
+        openButton.setEnabled(false);
+        deleteFavoriteButton.setEnabled(false);
         resultModel.setRowCount(0);
         allProducts.clear();
-        statusLabel.setText("搜尋中，請稍候...");
+        lowestPriceLabel.setText("最低價商品：搜尋中...");
+        statusLabel.setText("準備搜尋，請稍候...");
 
-        SwingWorker<List<Product>, Void> worker = new SwingWorker<>() {
+        SwingWorker<List<Product>, String> worker = new SwingWorker<>() {
             @Override
             protected List<Product> doInBackground() {
                 List<Product> list = new ArrayList<>();
 
                 if (booksCheck.isSelected()) {
-                    list.addAll(new BooksCrawler().search(keyword));
+                    publish("正在搜尋博客來...");
+                    try {
+                        list.addAll(new BooksCrawler().search(keyword));
+                    } catch (Exception ex) {
+                        publish("博客來搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
                 if (pchomeCheck.isSelected()) {
-                    list.addAll(new PChomeCrawler().search(keyword));
+                    publish("正在搜尋 PChome...");
+                    try {
+                        list.addAll(new PChomeCrawler().search(keyword));
+                    } catch (Exception ex) {
+                        publish("PChome 搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
                 if (momoCheck.isSelected()) {
-                    list.addAll(new MomoCrawler().search(keyword));
+                    publish("正在搜尋 momo...");
+                    try {
+                        list.addAll(new MomoCrawler().search(keyword));
+                    } catch (Exception ex) {
+                        publish("momo 搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
 
+                publish("正在套用價格篩選與排序...");
                 return applyFilterAndSort(list);
+            }
+
+            @Override
+            protected void process(List<String> chunks) {
+                if (!chunks.isEmpty()) {
+                    statusLabel.setText(chunks.get(chunks.size() - 1));
+                }
             }
 
             @Override
@@ -273,12 +324,22 @@ public class MainUI extends JFrame {
                 try {
                     allProducts.addAll(get());
                     refreshResultTable();
-                    statusLabel.setText("搜尋完成，共找到 " + allProducts.size() + " 筆商品");
+                    updateLowestPriceLabel();
+                    if (allProducts.isEmpty()) {
+                        statusLabel.setText("搜尋完成，但沒有符合條件的商品");
+                        JOptionPane.showMessageDialog(MainUI.this, "沒有找到符合條件的商品，可以換關鍵字或放寬價格範圍。", "搜尋結果", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        statusLabel.setText("搜尋完成，共找到 " + allProducts.size() + " 筆商品");
+                    }
                 } catch (Exception ex) {
                     statusLabel.setText("搜尋失敗：" + ex.getMessage());
-                    JOptionPane.showMessageDialog(MainUI.this, "搜尋失敗：" + ex.getMessage());
+                    lowestPriceLabel.setText("最低價商品：搜尋失敗");
+                    JOptionPane.showMessageDialog(MainUI.this, "搜尋失敗：" + ex.getMessage(), "搜尋錯誤", JOptionPane.ERROR_MESSAGE);
                 } finally {
                     searchButton.setEnabled(true);
+                    favoriteButton.setEnabled(true);
+                    openButton.setEnabled(true);
+                    deleteFavoriteButton.setEnabled(true);
                 }
             }
         };
@@ -314,13 +375,20 @@ public class MainUI extends JFrame {
     }
 
     private double parseOptionalPrice(String text) {
+        return parseOptionalPrice(text, "價格");
+    }
+
+    private double parseOptionalPrice(String text, String fieldName) {
         text = text.trim();
         if (text.isEmpty()) return 0;
         try {
             double value = Double.parseDouble(text);
-            return Math.max(value, 0);
+            if (value < 0) {
+                throw new IllegalArgumentException(fieldName + "不能小於 0");
+            }
+            return value;
         } catch (NumberFormatException e) {
-            return 0;
+            throw new IllegalArgumentException(fieldName + "請輸入數字，例如 100 或 1000");
         }
     }
 
@@ -334,6 +402,35 @@ public class MainUI extends JFrame {
                     product.getUrl()
             });
         }
+    }
+
+    private void updateLowestPriceLabel() {
+        if (allProducts.isEmpty()) {
+            lowestPriceLabel.setText("最低價商品：目前沒有符合條件的商品");
+            return;
+        }
+
+        Product cheapest = allProducts.stream()
+                .min(Comparator.comparingDouble(Product::getPrice))
+                .orElse(null);
+
+        if (cheapest == null) {
+            lowestPriceLabel.setText("最低價商品：目前沒有符合條件的商品");
+            return;
+        }
+
+        lowestPriceLabel.setText(String.format(
+                "最低價商品：%s｜NT$%.0f｜%s",
+                cheapest.getPlatform(),
+                cheapest.getPrice(),
+                shortenText(cheapest.getName(), 45)
+        ));
+    }
+
+    private String shortenText(String text, int maxLength) {
+        if (text == null) return "";
+        if (text.length() <= maxLength) return text;
+        return text.substring(0, maxLength) + "...";
     }
 
     private void refreshFavoriteTable() {
@@ -357,8 +454,9 @@ public class MainUI extends JFrame {
 
         Product selected = allProducts.get(row);
         for (Product product : favoriteProducts) {
-            if (product.getUrl().equals(selected.getUrl())) {
-                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了");
+            if (isSameProduct(product, selected)) {
+                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了，收藏清單不會重複加入", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
+                statusLabel.setText("此商品已在收藏中：" + selected.getName());
                 return;
             }
         }
@@ -367,6 +465,14 @@ public class MainUI extends JFrame {
         favoriteManager.saveFavoriteProducts();
         refreshFavoriteTable();
         statusLabel.setText("已加入收藏：" + selected.getName());
+    }
+
+    private boolean isSameProduct(Product a, Product b) {
+        if (a == null || b == null) return false;
+        if (a.getUrl() != null && b.getUrl() != null && !a.getUrl().isEmpty() && !b.getUrl().isEmpty()) {
+            return a.getUrl().equals(b.getUrl());
+        }
+        return a.getPlatform().equals(b.getPlatform()) && a.getName().equals(b.getName());
     }
 
     private void removeFavorite() {
