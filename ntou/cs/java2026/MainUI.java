@@ -16,7 +16,6 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
-import java.net.URL;
 import java.awt.image.BufferedImage;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -484,9 +483,7 @@ public class MainUI extends JFrame {
         if (text.isEmpty()) return 0;
         try {
             double value = Double.parseDouble(text);
-            if (value < 0) {
-                throw new IllegalArgumentException(fieldName + "不能小於 0");
-            }
+            if (value < 0) throw new IllegalArgumentException(fieldName + "不能小於 0");
             return value;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(fieldName + "請輸入數字，例如 100 或 1000");
@@ -530,7 +527,6 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先選擇一筆搜尋歷史", "搜尋歷史", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
         keywordField.setText(keyword);
         searchProducts();
     }
@@ -541,18 +537,8 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先選擇要刪除的搜尋歷史", "搜尋歷史", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要刪除這筆搜尋歷史？\n" + keyword,
-                "刪除搜尋歷史",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
-
+        int option = JOptionPane.showConfirmDialog(this, "確定要刪除這筆搜尋歷史？\n" + keyword, "刪除搜尋歷史", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
         searchHistory.remove(keyword);
         historyManager.saveSearchHistory();
         refreshHistoryList();
@@ -564,18 +550,8 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有搜尋歷史可以清空", "搜尋歷史", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要清空所有搜尋歷史？",
-                "清空搜尋歷史",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
-
+        int option = JOptionPane.showConfirmDialog(this, "確定要清空所有搜尋歷史？", "清空搜尋歷史", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
         searchHistory.clear();
         historyManager.saveSearchHistory();
         refreshHistoryList();
@@ -588,16 +564,13 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先在搜尋結果中選擇商品");
             return;
         }
-
         Product selected = allProducts.get(row);
         for (Product product : favoriteProducts) {
             if (isSameProduct(product, selected)) {
-                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了，收藏清單不會重複加入", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
-                statusLabel.setText("此商品已在收藏中：" + selected.getName());
+                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
         }
-
         favoriteProducts.add(selected);
         favoriteManager.saveFavoriteProducts();
         refreshFavoriteTable();
@@ -618,19 +591,9 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先在我的收藏中選擇要刪除的商品");
             return;
         }
-
         Product selected = favoriteProducts.get(row);
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要刪除收藏商品？\n" + selected.getName(),
-                "刪除收藏",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
-
+        int option = JOptionPane.showConfirmDialog(this, "確定要刪除收藏商品？\n" + selected.getName(), "刪除收藏", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
         favoriteProducts.remove(row);
         favoriteManager.saveFavoriteProducts();
         refreshFavoriteTable();
@@ -642,16 +605,8 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以更新", "重新整理收藏價格", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？",
-                "重新整理收藏價格",
-                JOptionPane.YES_NO_OPTION
-        );
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int option = JOptionPane.showConfirmDialog(this, "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？", "重新整理收藏價格", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
 
         searchButton.setEnabled(false);
         favoriteButton.setEnabled(false);
@@ -665,37 +620,30 @@ public class MainUI extends JFrame {
             @Override
             protected Integer doInBackground() {
                 int updatedCount = 0;
-
                 for (int i = 0; i < favoriteProducts.size(); i++) {
                     Product oldProduct = favoriteProducts.get(i);
                     publish("正在更新收藏價格：" + oldProduct.getName());
-
                     try {
                         List<Product> candidates = searchSamePlatform(oldProduct);
                         Product matched = findBestMatch(oldProduct, candidates);
                         if (matched != null) {
                             oldProduct.setPrice(matched.getPrice());
-                            if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty()) {
+                            if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty())
                                 oldProduct.setImageUrl(matched.getImageUrl());
-                            }
-                            if (matched.getUrl() != null && !matched.getUrl().isEmpty()) {
+                            if (matched.getUrl() != null && !matched.getUrl().isEmpty())
                                 oldProduct.setUrl(matched.getUrl());
-                            }
                             updatedCount++;
                         }
                     } catch (Exception ex) {
                         publish("更新失敗，已略過：" + oldProduct.getName());
                     }
                 }
-
                 return updatedCount;
             }
 
             @Override
             protected void process(List<String> chunks) {
-                if (!chunks.isEmpty()) {
-                    statusLabel.setText(chunks.get(chunks.size() - 1));
-                }
+                if (!chunks.isEmpty()) statusLabel.setText(chunks.get(chunks.size() - 1));
             }
 
             @Override
@@ -719,52 +667,36 @@ public class MainUI extends JFrame {
                 }
             }
         };
-
         worker.execute();
     }
 
     private List<Product> searchSamePlatform(Product product) {
         String platform = product.getPlatform();
         String keyword = simplifyKeyword(product.getName());
-
-        if ("博客來".equalsIgnoreCase(platform)) {
-            return new BooksCrawler().search(keyword);
-        }
-        if ("PChome".equalsIgnoreCase(platform)) {
-            return new PChomeCrawler().search(keyword);
-        }
-        if ("momo".equalsIgnoreCase(platform)) {
-            return new MomoCrawler().search(keyword);
-        }
+        if ("博客來".equalsIgnoreCase(platform)) return new BooksCrawler().search(keyword);
+        if ("PChome".equalsIgnoreCase(platform)) return new PChomeCrawler().search(keyword);
+        if ("momo".equalsIgnoreCase(platform)) return new MomoCrawler().search(keyword);
         return new ArrayList<>();
     }
 
     private String simplifyKeyword(String name) {
         if (name == null) return "";
         String cleaned = name.replaceAll("[【】\\[\\]（）(){}<>].*?[【】\\[\\]（）(){}<>]?", " ").trim();
-        if (cleaned.length() > 35) {
-            cleaned = cleaned.substring(0, 35);
-        }
+        if (cleaned.length() > 35) cleaned = cleaned.substring(0, 35);
         return cleaned.trim().isEmpty() ? name : cleaned;
     }
 
     private Product findBestMatch(Product oldProduct, List<Product> candidates) {
         if (candidates == null || candidates.isEmpty()) return null;
-
         for (Product candidate : candidates) {
-            if (isSameProduct(oldProduct, candidate)) {
-                return candidate;
-            }
+            if (isSameProduct(oldProduct, candidate)) return candidate;
         }
-
         String oldName = oldProduct.getName() == null ? "" : oldProduct.getName().toLowerCase();
         for (Product candidate : candidates) {
             String candidateName = candidate.getName() == null ? "" : candidate.getName().toLowerCase();
-            if (!candidateName.isEmpty() && (oldName.contains(candidateName) || candidateName.contains(oldName))) {
+            if (!candidateName.isEmpty() && (oldName.contains(candidateName) || candidateName.contains(oldName)))
                 return candidate;
-            }
         }
-
         return candidates.get(0);
     }
 
@@ -773,21 +705,14 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以匯出", "匯出收藏 CSV", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("匯出收藏商品 CSV");
         chooser.setSelectedFile(new File("favorites_export.csv"));
-
         int result = chooser.showSaveDialog(this);
-        if (result != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-
+        if (result != JFileChooser.APPROVE_OPTION) return;
         File file = chooser.getSelectedFile();
-        if (!file.getName().toLowerCase().endsWith(".csv")) {
+        if (!file.getName().toLowerCase().endsWith(".csv"))
             file = new File(file.getParentFile(), file.getName() + ".csv");
-        }
-
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             writer.write("platform,name,price,url,imageUrl");
             writer.newLine();
@@ -813,9 +738,7 @@ public class MainUI extends JFrame {
     private String escapeCsv(String text) {
         if (text == null) return "";
         text = text.replace("\"", "\"\"");
-        if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
-            return "\"" + text + "\"";
-        }
+        if (text.contains(",") || text.contains("\"") || text.contains("\n")) return "\"" + text + "\"";
         return text;
     }
 
@@ -830,8 +753,8 @@ public class MainUI extends JFrame {
         imageTitleLabel.setText("商品圖片");
         imageLabel.setIcon(null);
 
-        if (imageUrl == null || imageUrl.trim().isEmpty()) {
-            imageLabel.setText("此商品沒有圖片網址");
+        if (imageUrl == null || imageUrl.trim().isEmpty() || imageUrl.startsWith("data:")) {
+            imageLabel.setText("此商品沒有圖片");
             return;
         }
 
@@ -839,8 +762,45 @@ public class MainUI extends JFrame {
         SwingWorker<ImageIcon, Void> worker = new SwingWorker<>() {
             @Override
             protected ImageIcon doInBackground() throws Exception {
-                BufferedImage image = ImageIO.read(new URL(imageUrl));
+                // 載入 WebP 支援
+                ImageIO.scanForPlugins();
+
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
+                    new java.net.URL(imageUrl).openConnection();
+                conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                conn.setRequestProperty("Accept", "image/jpeg,image/png,image/gif,image/webp,*/*");
+                conn.setRequestProperty("Accept-Language", "zh-TW,zh;q=0.9");
+                conn.setInstanceFollowRedirects(true);
+
+                String referer = "https://www.books.com.tw/";
+                if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) {
+                    referer = "https://24h.pchome.com.tw/";
+                } else if (imageUrl.contains("momo")) {
+                    referer = "https://www.momoshop.com.tw/";
+                } else if (imageUrl.contains("book")) {
+                    referer = "https://www.books.com.tw/";
+                }
+                conn.setRequestProperty("Referer", referer);
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.connect();
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) return null;
+
+                // 讀取圖片 bytes
+                java.io.InputStream is = conn.getInputStream();
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int n;
+                while ((n = is.read(buffer)) != -1) baos.write(buffer, 0, n);
+                byte[] imageBytes = baos.toByteArray();
+
+                // 用 ImageIO 讀取（支援 WebP）
+                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageBytes);
+                BufferedImage image = ImageIO.read(bais);
                 if (image == null) return null;
+
                 Image scaled = scaleImage(image, 220, 260);
                 return new ImageIcon(scaled);
             }
@@ -878,7 +838,6 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先選擇一個商品");
             return;
         }
-
         try {
             Desktop.getDesktop().browse(new URI(selected.getUrl()));
         } catch (Exception e) {
@@ -887,12 +846,8 @@ public class MainUI extends JFrame {
     }
 
     private Product getSelectedProduct() {
-        if (resultTable.getSelectedRow() >= 0) {
-            return allProducts.get(resultTable.getSelectedRow());
-        }
-        if (favoriteTable.getSelectedRow() >= 0) {
-            return favoriteProducts.get(favoriteTable.getSelectedRow());
-        }
+        if (resultTable.getSelectedRow() >= 0) return allProducts.get(resultTable.getSelectedRow());
+        if (favoriteTable.getSelectedRow() >= 0) return favoriteProducts.get(favoriteTable.getSelectedRow());
         return null;
     }
 

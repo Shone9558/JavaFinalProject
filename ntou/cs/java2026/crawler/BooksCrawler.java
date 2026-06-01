@@ -10,10 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import ntou.cs.java2026.util.ProductMatcher;
 
-/**
- * 博客來爬蟲
- * 使用 jsoup 解析靜態 HTML 頁面
- */
 public class BooksCrawler extends BaseCrawler {
 
     private static final String BASE_URL =
@@ -43,28 +39,32 @@ public class BooksCrawler extends BaseCrawler {
                 if (results.size() >= MAX_RESULTS) break;
 
                 try {
-                    // 抓商品名稱
                     Element nameEl = item.selectFirst("h4 a");
                     if (nameEl == null) continue;
                     String name = nameEl.text().trim();
-                    if (!ProductMatcher.isRelevant(name, keyword)) {
-                        continue;
-                    }
+                    if (!ProductMatcher.isRelevant(name, keyword)) continue;
 
-                    // 抓商品網址
                     String productUrl = nameEl.attr("abs:href");
 
-                    // 抓價格（第二個 <b> 才是實際價格，第一個是折扣）
                     Elements priceEls = item.select("ul.price li b");
                     if (priceEls.size() < 2) continue;
                     double price = parsePrice(priceEls.get(1).text());
                     if (price <= 0) continue;
 
-                    // 抓圖片
+                    // 抓圖片，優先用 data-src，過濾 base64 佔位圖
                     Element imgEl = item.selectFirst("img");
-                    String imageUrl = imgEl != null ? imgEl.attr("abs:src") : "";
+                    String imageUrl = "";
+                    if (imgEl != null) {
+                        String dataSrc = imgEl.attr("data-src");
+                        String src = imgEl.attr("abs:src");
+                        imageUrl = !dataSrc.isEmpty() ? dataSrc : src;
+                        if (imageUrl.startsWith("data:")) imageUrl = "";
+                        // 要求回傳 JPG 格式，避免 WebP
+                        if (!imageUrl.isEmpty() && imageUrl.contains("book.com.tw")) {
+                            imageUrl = imageUrl + "&type=jpg";
+                        }
+                    }
 
-                    // 建立商品物件
                     Product product = new Product(name, price, getPlatformName(), productUrl);
                     product.setImageUrl(imageUrl);
                     results.add(product);

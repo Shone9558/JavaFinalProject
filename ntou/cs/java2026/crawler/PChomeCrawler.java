@@ -76,8 +76,11 @@ public class PChomeCrawler extends BaseCrawler {
                     String prodId = prod.get("Id").getAsString();
                     String productUrl = "https://24h.pchome.com.tw/prod/" + prodId;
 
+                    // 正確的 PChome 圖片網址
+                    String picS = prod.has("picS") ? prod.get("picS").getAsString() : "";
                     String picB = prod.has("picB") ? prod.get("picB").getAsString() : "";
-                    String imageUrl = picB.isEmpty() ? "" : "https://a.ecimg.tw" + picB;
+                    String pic = !picS.isEmpty() ? picS : picB;
+                    String imageUrl = pic.isEmpty() ? "" : "https://img.pchome.com.tw/cs" + pic;
 
                     Product product = new Product(name, price, getPlatformName(), productUrl);
                     product.setImageUrl(imageUrl);
