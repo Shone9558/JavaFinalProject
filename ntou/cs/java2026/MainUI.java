@@ -5,6 +5,7 @@ import ntou.cs.java2026.crawler.MomoCrawler;
 import ntou.cs.java2026.crawler.PChomeCrawler;
 import ntou.cs.java2026.model.Product;
 import ntou.cs.java2026.manager.FavoriteManager;
+import ntou.cs.java2026.manager.HistoryManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -31,8 +32,13 @@ public class MainUI extends JFrame {
     private final JButton favoriteButton = new JButton("加入收藏");
     private final JButton deleteFavoriteButton = new JButton("刪除收藏");
     private final JButton openButton = new JButton("開啟商品頁");
+    private final JButton useHistoryButton = new JButton("用此關鍵字搜尋");
+    private final JButton deleteHistoryButton = new JButton("刪除搜尋歷史");
+    private final JButton clearHistoryButton = new JButton("清空搜尋歷史");
     private final JLabel statusLabel = new JLabel("請輸入關鍵字開始搜尋");
-    private final JLabel lowestPriceLabel = new JLabel("最低價商品：尚未搜尋");
+
+    private final DefaultListModel<String> historyListModel = new DefaultListModel<>();
+    private final JList<String> historyList = new JList<>(historyListModel);
 
     private final DefaultTableModel resultModel = new DefaultTableModel(new String[]{"平台", "商品名稱", "價格", "網址"}, 0) {
         @Override
@@ -54,6 +60,8 @@ public class MainUI extends JFrame {
     private final List<Product> allProducts = new ArrayList<>();
     private final FavoriteManager favoriteManager = new FavoriteManager();
     private final List<Product> favoriteProducts = favoriteManager.getFavoriteProducts();
+    private final HistoryManager historyManager = new HistoryManager();
+    private final List<String> searchHistory = historyManager.getSearchHistory();
 
     public MainUI() {
         setTitle("智慧購物比價追蹤器");
@@ -65,6 +73,7 @@ public class MainUI extends JFrame {
         initLayout();
         initEvents();
         refreshFavoriteTable();
+        refreshHistoryList();
     }
 
     private void initLookAndFeel() {
@@ -144,15 +153,12 @@ public class MainUI extends JFrame {
         setupTable(favoriteTable);
 
         JPanel resultPanel = createTablePanel(resultTable);
-        lowestPriceLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 14));
-        lowestPriceLabel.setForeground(new Color(35, 48, 68));
-        lowestPriceLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
-        resultPanel.add(lowestPriceLabel, BorderLayout.NORTH);
-
         JPanel favoritePanel = createTablePanel(favoriteTable);
+        JPanel historyPanel = createHistoryPanel();
 
         tabs.addTab("搜尋結果", resultPanel);
         tabs.addTab("我的收藏", favoritePanel);
+        tabs.addTab("搜尋歷史", historyPanel);
 
         root.add(tabs, BorderLayout.CENTER);
 
@@ -190,6 +196,32 @@ public class MainUI extends JFrame {
         JPanel panel = createCardPanel();
         panel.setLayout(new BorderLayout());
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createHistoryPanel() {
+        JPanel panel = createCardPanel();
+        panel.setLayout(new BorderLayout(10, 10));
+
+        JLabel hintLabel = new JLabel("雙擊歷史關鍵字，或選取後按按鈕，即可重新搜尋");
+        hintLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
+        hintLabel.setForeground(new Color(85, 95, 110));
+        panel.add(hintLabel, BorderLayout.NORTH);
+
+        historyList.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 14));
+        historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        panel.add(new JScrollPane(historyList), BorderLayout.CENTER);
+
+        JPanel historyButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        historyButtonPanel.setOpaque(false);
+        styleSecondaryButton(useHistoryButton);
+        styleSecondaryButton(deleteHistoryButton);
+        styleSecondaryButton(clearHistoryButton);
+        historyButtonPanel.add(useHistoryButton);
+        historyButtonPanel.add(deleteHistoryButton);
+        historyButtonPanel.add(clearHistoryButton);
+        panel.add(historyButtonPanel, BorderLayout.SOUTH);
+
         return panel;
     }
 
@@ -231,6 +263,9 @@ public class MainUI extends JFrame {
         favoriteButton.addActionListener(e -> addFavorite());
         deleteFavoriteButton.addActionListener(e -> removeFavorite());
         openButton.addActionListener(e -> openSelectedProduct());
+        useHistoryButton.addActionListener(e -> searchFromSelectedHistory());
+        deleteHistoryButton.addActionListener(e -> deleteSelectedHistory());
+        clearHistoryButton.addActionListener(e -> clearSearchHistory());
 
         MouseAdapter openByDoubleClick = new MouseAdapter() {
             @Override
@@ -242,6 +277,15 @@ public class MainUI extends JFrame {
         };
         resultTable.addMouseListener(openByDoubleClick);
         favoriteTable.addMouseListener(openByDoubleClick);
+
+        historyList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    searchFromSelectedHistory();
+                }
+            }
+        });
     }
 
     private void searchProducts() {
@@ -275,8 +319,9 @@ public class MainUI extends JFrame {
         deleteFavoriteButton.setEnabled(false);
         resultModel.setRowCount(0);
         allProducts.clear();
-        lowestPriceLabel.setText("最低價商品：搜尋中...");
         statusLabel.setText("準備搜尋，請稍候...");
+        historyManager.addHistory(keyword);
+        refreshHistoryList();
 
         SwingWorker<List<Product>, String> worker = new SwingWorker<>() {
             @Override
@@ -324,7 +369,6 @@ public class MainUI extends JFrame {
                 try {
                     allProducts.addAll(get());
                     refreshResultTable();
-                    updateLowestPriceLabel();
                     if (allProducts.isEmpty()) {
                         statusLabel.setText("搜尋完成，但沒有符合條件的商品");
                         JOptionPane.showMessageDialog(MainUI.this, "沒有找到符合條件的商品，可以換關鍵字或放寬價格範圍。", "搜尋結果", JOptionPane.INFORMATION_MESSAGE);
@@ -333,7 +377,6 @@ public class MainUI extends JFrame {
                     }
                 } catch (Exception ex) {
                     statusLabel.setText("搜尋失敗：" + ex.getMessage());
-                    lowestPriceLabel.setText("最低價商品：搜尋失敗");
                     JOptionPane.showMessageDialog(MainUI.this, "搜尋失敗：" + ex.getMessage(), "搜尋錯誤", JOptionPane.ERROR_MESSAGE);
                 } finally {
                     searchButton.setEnabled(true);
@@ -404,35 +447,6 @@ public class MainUI extends JFrame {
         }
     }
 
-    private void updateLowestPriceLabel() {
-        if (allProducts.isEmpty()) {
-            lowestPriceLabel.setText("最低價商品：目前沒有符合條件的商品");
-            return;
-        }
-
-        Product cheapest = allProducts.stream()
-                .min(Comparator.comparingDouble(Product::getPrice))
-                .orElse(null);
-
-        if (cheapest == null) {
-            lowestPriceLabel.setText("最低價商品：目前沒有符合條件的商品");
-            return;
-        }
-
-        lowestPriceLabel.setText(String.format(
-                "最低價商品：%s｜NT$%.0f｜%s",
-                cheapest.getPlatform(),
-                cheapest.getPrice(),
-                shortenText(cheapest.getName(), 45)
-        ));
-    }
-
-    private String shortenText(String text, int maxLength) {
-        if (text == null) return "";
-        if (text.length() <= maxLength) return text;
-        return text.substring(0, maxLength) + "...";
-    }
-
     private void refreshFavoriteTable() {
         favoriteModel.setRowCount(0);
         for (Product product : favoriteProducts) {
@@ -443,6 +457,71 @@ public class MainUI extends JFrame {
                     product.getUrl()
             });
         }
+    }
+
+    private void refreshHistoryList() {
+        historyListModel.clear();
+        for (int i = searchHistory.size() - 1; i >= 0; i--) {
+            historyListModel.addElement(searchHistory.get(i));
+        }
+    }
+
+    private void searchFromSelectedHistory() {
+        String keyword = historyList.getSelectedValue();
+        if (keyword == null || keyword.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請先選擇一筆搜尋歷史", "搜尋歷史", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        keywordField.setText(keyword);
+        searchProducts();
+    }
+
+    private void deleteSelectedHistory() {
+        String keyword = historyList.getSelectedValue();
+        if (keyword == null || keyword.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請先選擇要刪除的搜尋歷史", "搜尋歷史", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int option = JOptionPane.showConfirmDialog(
+                this,
+                "確定要刪除這筆搜尋歷史？\n" + keyword,
+                "刪除搜尋歷史",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (option != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        searchHistory.remove(keyword);
+        historyManager.saveSearchHistory();
+        refreshHistoryList();
+        statusLabel.setText("已刪除搜尋歷史：" + keyword);
+    }
+
+    private void clearSearchHistory() {
+        if (searchHistory.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "目前沒有搜尋歷史可以清空", "搜尋歷史", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int option = JOptionPane.showConfirmDialog(
+                this,
+                "確定要清空所有搜尋歷史？",
+                "清空搜尋歷史",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (option != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        searchHistory.clear();
+        historyManager.saveSearchHistory();
+        refreshHistoryList();
+        statusLabel.setText("已清空搜尋歷史");
     }
 
     private void addFavorite() {
