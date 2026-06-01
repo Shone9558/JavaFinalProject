@@ -4,6 +4,7 @@ import ntou.cs.java2026.crawler.BooksCrawler;
 import ntou.cs.java2026.crawler.MomoCrawler;
 import ntou.cs.java2026.crawler.PChomeCrawler;
 import ntou.cs.java2026.model.Product;
+import ntou.cs.java2026.manager.FavoriteManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -28,6 +29,7 @@ public class MainUI extends JFrame {
     private final JTextField maxPriceField = new JTextField();
     private final JButton searchButton = new JButton("搜尋商品");
     private final JButton favoriteButton = new JButton("加入收藏");
+    private final JButton deleteFavoriteButton = new JButton("刪除收藏");
     private final JButton openButton = new JButton("開啟商品頁");
     private final JLabel statusLabel = new JLabel("請輸入關鍵字開始搜尋");
 
@@ -49,7 +51,8 @@ public class MainUI extends JFrame {
     private final JTable favoriteTable = new JTable(favoriteModel);
 
     private final List<Product> allProducts = new ArrayList<>();
-    private final List<Product> favoriteProducts = new ArrayList<>();
+    private final FavoriteManager favoriteManager = new FavoriteManager();
+    private final List<Product> favoriteProducts = favoriteManager.getFavoriteProducts();
 
     public MainUI() {
         setTitle("智慧購物比價追蹤器");
@@ -60,6 +63,7 @@ public class MainUI extends JFrame {
         initLookAndFeel();
         initLayout();
         initEvents();
+        refreshFavoriteTable();
     }
 
     private void initLookAndFeel() {
@@ -153,7 +157,9 @@ public class MainUI extends JFrame {
         buttonPanel.setOpaque(false);
         styleSecondaryButton(favoriteButton);
         styleSecondaryButton(openButton);
+        styleSecondaryButton(deleteFavoriteButton);
         buttonPanel.add(favoriteButton);
+        buttonPanel.add(deleteFavoriteButton);
         buttonPanel.add(openButton);
 
         statusLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
@@ -217,6 +223,7 @@ public class MainUI extends JFrame {
     private void initEvents() {
         searchButton.addActionListener(e -> searchProducts());
         favoriteButton.addActionListener(e -> addFavorite());
+        deleteFavoriteButton.addActionListener(e -> removeFavorite());
         openButton.addActionListener(e -> openSelectedProduct());
 
         MouseAdapter openByDoubleClick = new MouseAdapter() {
@@ -357,8 +364,34 @@ public class MainUI extends JFrame {
         }
 
         favoriteProducts.add(selected);
+        favoriteManager.saveFavoriteProducts();
         refreshFavoriteTable();
         statusLabel.setText("已加入收藏：" + selected.getName());
+    }
+
+    private void removeFavorite() {
+        int row = favoriteTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "請先在我的收藏中選擇要刪除的商品");
+            return;
+        }
+
+        Product selected = favoriteProducts.get(row);
+        int option = JOptionPane.showConfirmDialog(
+                this,
+                "確定要刪除收藏商品？\n" + selected.getName(),
+                "刪除收藏",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (option != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        favoriteProducts.remove(row);
+        favoriteManager.saveFavoriteProducts();
+        refreshFavoriteTable();
+        statusLabel.setText("已刪除收藏：" + selected.getName());
     }
 
     private void openSelectedProduct() {
