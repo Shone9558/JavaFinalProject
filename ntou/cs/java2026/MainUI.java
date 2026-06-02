@@ -1,5 +1,6 @@
 package ntou.cs.java2026;
 
+import ntou.cs.java2026.chart.PriceChartPanel;
 import ntou.cs.java2026.crawler.BooksCrawler;
 import ntou.cs.java2026.crawler.MomoCrawler;
 import ntou.cs.java2026.crawler.PChomeCrawler;
@@ -27,7 +28,6 @@ import java.util.List;
 
 public class MainUI extends JFrame {
 
-    // ===== 奶茶文藝風配色 =====
     private static final Color BG = new Color(247, 242, 234);
     private static final Color CARD = new Color(255, 253, 249);
     private static final Color LINE = new Color(226, 216, 202);
@@ -55,6 +55,7 @@ public class MainUI extends JFrame {
     private final JButton useHistoryButton = new JButton("用此關鍵字搜尋");
     private final JButton deleteHistoryButton = new JButton("刪除歷史");
     private final JButton clearHistoryButton = new JButton("清空歷史");
+    private final JButton showChartButton = new JButton("比價圖表");
 
     private final JLabel statusLabel = new JLabel("輸入關鍵字，開始找今天最值得買的商品");
     private final JLabel imageLabel = new JLabel("選取商品後顯示圖片", SwingConstants.CENTER);
@@ -70,6 +71,8 @@ public class MainUI extends JFrame {
     private final List<Product> favoriteProducts = favoriteManager.getFavoriteProducts();
     private final HistoryManager historyManager = new HistoryManager();
     private final List<String> searchHistory = historyManager.getSearchHistory();
+
+    private final PriceChartPanel priceChartPanel = new PriceChartPanel();
 
     private Product selectedProduct = null;
     private boolean selectedFromFavorite = false;
@@ -214,10 +217,12 @@ public class MainUI extends JFrame {
         styleSecondaryButton(deleteFavoriteButton);
         styleSecondaryButton(refreshFavoritePriceButton);
         styleSecondaryButton(exportFavoriteCsvButton);
+        styleSecondaryButton(showChartButton);
         buttonPanel.add(favoriteButton);
         buttonPanel.add(deleteFavoriteButton);
         buttonPanel.add(refreshFavoritePriceButton);
         buttonPanel.add(exportFavoriteCsvButton);
+        buttonPanel.add(showChartButton);
         buttonPanel.add(openButton);
 
         bottom.add(statusLabel, BorderLayout.WEST);
@@ -343,7 +348,6 @@ public class MainUI extends JFrame {
 
         fav.addActionListener(e -> {
             boolean nowFavorite = isFavorite(product);
-
             if (nowFavorite) {
                 removeFavoriteProduct(product);
                 favoriteManager.saveFavoriteProducts();
@@ -357,7 +361,6 @@ public class MainUI extends JFrame {
                 selectedFromFavorite = false;
                 statusLabel.setText("已加入收藏：" + product.getName());
             }
-
             refreshResultCards();
             refreshFavoriteCards();
         });
@@ -454,6 +457,7 @@ public class MainUI extends JFrame {
         useHistoryButton.addActionListener(e -> searchFromSelectedHistory());
         deleteHistoryButton.addActionListener(e -> deleteSelectedHistory());
         clearHistoryButton.addActionListener(e -> clearSearchHistory());
+        showChartButton.addActionListener(e -> showPriceChart());
 
         keywordField.addActionListener(e -> searchProducts());
 
@@ -463,6 +467,20 @@ public class MainUI extends JFrame {
                 if (e.getClickCount() == 2) searchFromSelectedHistory();
             }
         });
+    }
+
+    private void showPriceChart() {
+        if (allProducts.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請先搜尋商品", "比價圖表", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JDialog dialog = new JDialog(this, "價格比較圖表", false);
+        dialog.setSize(1000, 600);
+        dialog.setLocationRelativeTo(this);
+        priceChartPanel.showPriceChart(allProducts);
+        dialog.add(priceChartPanel);
+        dialog.setVisible(true);
     }
 
     private void searchProducts() {
@@ -564,6 +582,7 @@ public class MainUI extends JFrame {
         deleteFavoriteButton.setEnabled(enabled);
         refreshFavoritePriceButton.setEnabled(enabled);
         exportFavoriteCsvButton.setEnabled(enabled);
+        showChartButton.setEnabled(enabled);
     }
 
     private List<Product> applyFilterAndSort(List<Product> list) {
@@ -653,10 +672,8 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先選擇要刪除的搜尋歷史", "搜尋歷史", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
         int option = JOptionPane.showConfirmDialog(this, "確定要刪除這筆搜尋歷史？\n" + keyword, "刪除搜尋歷史", JOptionPane.YES_NO_OPTION);
         if (option != JOptionPane.YES_OPTION) return;
-
         searchHistory.remove(keyword);
         historyManager.saveSearchHistory();
         refreshHistoryList();
@@ -668,10 +685,8 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有搜尋歷史可以清空", "搜尋歷史", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
         int option = JOptionPane.showConfirmDialog(this, "確定要清空所有搜尋歷史？", "清空搜尋歷史", JOptionPane.YES_NO_OPTION);
         if (option != JOptionPane.YES_OPTION) return;
-
         searchHistory.clear();
         historyManager.saveSearchHistory();
         refreshHistoryList();
@@ -687,15 +702,12 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "這個商品已經在收藏中");
             return;
         }
-
         for (Product product : favoriteProducts) {
             if (isSameProduct(product, selectedProduct)) {
-                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了，收藏清單不會重複加入", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
-                statusLabel.setText("此商品已在收藏中：" + selectedProduct.getName());
+                JOptionPane.showMessageDialog(this, "這個商品已經收藏過了", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
         }
-
         favoriteProducts.add(selectedProduct);
         favoriteManager.saveFavoriteProducts();
         refreshFavoriteCards();
@@ -713,13 +725,10 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "請先在我的收藏中選擇要刪除的商品");
             return;
         }
-
         int index = favoriteProducts.indexOf(selectedProduct);
         if (index < 0) return;
-
         int option = JOptionPane.showConfirmDialog(this, "確定要刪除收藏商品？\n" + selectedProduct.getName(), "刪除收藏", JOptionPane.YES_NO_OPTION);
         if (option != JOptionPane.YES_OPTION) return;
-
         Product removed = favoriteProducts.remove(index);
         selectedProduct = null;
         favoriteManager.saveFavoriteProducts();
@@ -732,7 +741,6 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以更新", "重新整理收藏價格", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
         int option = JOptionPane.showConfirmDialog(this, "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？", "重新整理收藏價格", JOptionPane.YES_NO_OPTION);
         if (option != JOptionPane.YES_OPTION) return;
 
@@ -818,17 +826,13 @@ public class MainUI extends JFrame {
             JOptionPane.showMessageDialog(this, "目前沒有收藏商品可以匯出", "匯出收藏 CSV", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("匯出收藏商品 CSV");
         chooser.setSelectedFile(new File("favorites_export.csv"));
-
         int result = chooser.showSaveDialog(this);
         if (result != JFileChooser.APPROVE_OPTION) return;
-
         File file = chooser.getSelectedFile();
         if (!file.getName().toLowerCase().endsWith(".csv")) file = new File(file.getParentFile(), file.getName() + ".csv");
-
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             writer.write("platform,name,price,url,imageUrl");
             writer.newLine();
@@ -860,16 +864,13 @@ public class MainUI extends JFrame {
             imageLabel.setText("選取商品後顯示圖片");
             return;
         }
-
         String imageUrl = product.getImageUrl();
         imageTitleLabel.setText("商品圖片");
         imageLabel.setIcon(null);
-
         if (imageUrl == null || imageUrl.trim().isEmpty() || imageUrl.startsWith("data:")) {
             imageLabel.setText("此商品沒有圖片");
             return;
         }
-
         imageLabel.setText("圖片載入中...");
         SwingWorker<ImageIcon, Void> worker = new SwingWorker<>() {
             @Override
@@ -880,7 +881,6 @@ public class MainUI extends JFrame {
                 conn.setRequestProperty("Accept", "image/jpeg,image/png,image/gif,image/webp,*/*");
                 conn.setRequestProperty("Accept-Language", "zh-TW,zh;q=0.9");
                 conn.setInstanceFollowRedirects(true);
-
                 String referer;
                 if (imageUrl.contains("yec.tw") || imageUrl.contains("yahoo")) referer = "https://tw.buy.yahoo.com/";
                 else if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) referer = "https://24h.pchome.com.tw/";
@@ -891,8 +891,13 @@ public class MainUI extends JFrame {
                 conn.setReadTimeout(8000);
                 conn.connect();
                 if (conn.getResponseCode() != 200) return null;
-
-                BufferedImage image = ImageIO.read(conn.getInputStream());
+                java.io.InputStream is = conn.getInputStream();
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int n;
+                while ((n = is.read(buffer)) != -1) baos.write(buffer, 0, n);
+                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(baos.toByteArray());
+                BufferedImage image = ImageIO.read(bais);
                 if (image == null) return null;
                 Image scaled = scaleImage(image, 220, 260);
                 return new ImageIcon(scaled);
@@ -941,31 +946,15 @@ public class MainUI extends JFrame {
         SwingUtilities.invokeLater(() -> new MainUI().setVisible(true));
     }
 
-    /**
-     * 自己畫愛心，不靠系統字型，所以不會再出現方框。
-     */
     static class HeartIcon implements Icon {
         private final boolean filled;
-
-        HeartIcon(boolean filled) {
-            this.filled = filled;
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 15;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 14;
-        }
-
+        HeartIcon(boolean filled) { this.filled = filled; }
+        @Override public int getIconWidth() { return 15; }
+        @Override public int getIconHeight() { return 14; }
         @Override
         public void paintIcon(Component c, Graphics g, int x, int y) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
             Path2D.Double heart = new Path2D.Double();
             heart.moveTo(x + 7.5, y + 13);
             heart.curveTo(x + 1, y + 8, x + 0, y + 4, x + 3.5, y + 2);
@@ -973,7 +962,6 @@ public class MainUI extends JFrame {
             heart.curveTo(x + 8, y + 2, x + 9.5, y + 0.8, x + 11.5, y + 2);
             heart.curveTo(x + 15, y + 4, x + 14, y + 8, x + 7.5, y + 13);
             heart.closePath();
-
             if (filled) {
                 g2.setColor(new Color(210, 65, 65));
                 g2.fill(heart);
@@ -986,40 +974,26 @@ public class MainUI extends JFrame {
         }
     }
 
-    /**
-     * 讓商品卡片可以自動換行排列。
-     * 不需要額外檔案，直接放在 MainUI.java 最下面即可。
-     */
     static class WrapLayout extends FlowLayout {
-        public WrapLayout(int align, int hgap, int vgap) {
-            super(align, hgap, vgap);
-        }
-
+        public WrapLayout(int align, int hgap, int vgap) { super(align, hgap, vgap); }
         @Override
-        public Dimension preferredLayoutSize(Container target) {
-            return layoutSize(target, true);
-        }
-
+        public Dimension preferredLayoutSize(Container target) { return layoutSize(target, true); }
         @Override
         public Dimension minimumLayoutSize(Container target) {
             Dimension minimum = layoutSize(target, false);
             minimum.width -= (getHgap() + 1);
             return minimum;
         }
-
         private Dimension layoutSize(Container target, boolean preferred) {
             synchronized (target.getTreeLock()) {
                 int targetWidth = target.getWidth();
                 if (targetWidth == 0) targetWidth = Integer.MAX_VALUE;
-
                 Insets insets = target.getInsets();
                 int horizontalInsetsAndGap = insets.left + insets.right + (getHgap() * 2);
                 int maxWidth = targetWidth - horizontalInsetsAndGap;
-
                 Dimension dim = new Dimension(0, 0);
                 int rowWidth = 0;
                 int rowHeight = 0;
-
                 int nmembers = target.getComponentCount();
                 for (int i = 0; i < nmembers; i++) {
                     Component m = target.getComponent(i);
@@ -1041,7 +1015,6 @@ public class MainUI extends JFrame {
                 return dim;
             }
         }
-
         private void addRow(Dimension dim, int rowWidth, int rowHeight) {
             dim.width = Math.max(dim.width, rowWidth);
             if (dim.height > 0) dim.height += getVgap();
