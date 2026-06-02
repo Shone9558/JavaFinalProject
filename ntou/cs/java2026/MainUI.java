@@ -8,25 +8,34 @@ import ntou.cs.java2026.model.Product;
 import ntou.cs.java2026.manager.FavoriteManager;
 import ntou.cs.java2026.manager.HistoryManager;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.net.URI;
 import java.awt.image.BufferedImage;
+import java.awt.geom.Path2D;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 public class MainUI extends JFrame {
+
+    // ===== 奶茶文藝風配色 =====
+    private static final Color BG = new Color(247, 242, 234);
+    private static final Color CARD = new Color(255, 253, 249);
+    private static final Color LINE = new Color(226, 216, 202);
+    private static final Color MAIN = new Color(128, 98, 70);
+    private static final Color MAIN_DARK = new Color(88, 65, 45);
+    private static final Color TEXT = new Color(48, 43, 38);
+    private static final Color MUTED = new Color(125, 113, 100);
+    private static final Color CHIP = new Color(239, 229, 215);
 
     private final JTextField keywordField = new JTextField();
     private final JCheckBox booksCheck = new JCheckBox("博客來", true);
@@ -36,38 +45,25 @@ public class MainUI extends JFrame {
     private final JComboBox<String> sortBox = new JComboBox<>(new String[]{"價格由低到高", "價格由高到低", "平台名稱", "商品名稱"});
     private final JTextField minPriceField = new JTextField();
     private final JTextField maxPriceField = new JTextField();
-    private final JButton searchButton = new JButton("搜尋商品");
+
+    private final JButton searchButton = new JButton("搜尋");
     private final JButton favoriteButton = new JButton("加入收藏");
     private final JButton deleteFavoriteButton = new JButton("刪除收藏");
-    private final JButton refreshFavoritePriceButton = new JButton("重新整理收藏價格");
-    private final JButton exportFavoriteCsvButton = new JButton("匯出收藏 CSV");
+    private final JButton refreshFavoritePriceButton = new JButton("刷新收藏價格");
+    private final JButton exportFavoriteCsvButton = new JButton("匯出 CSV");
     private final JButton openButton = new JButton("開啟商品頁");
     private final JButton useHistoryButton = new JButton("用此關鍵字搜尋");
-    private final JButton deleteHistoryButton = new JButton("刪除搜尋歷史");
-    private final JButton clearHistoryButton = new JButton("清空搜尋歷史");
-    private final JLabel statusLabel = new JLabel("請輸入關鍵字開始搜尋");
+    private final JButton deleteHistoryButton = new JButton("刪除歷史");
+    private final JButton clearHistoryButton = new JButton("清空歷史");
+
+    private final JLabel statusLabel = new JLabel("輸入關鍵字，開始找今天最值得買的商品");
     private final JLabel imageLabel = new JLabel("選取商品後顯示圖片", SwingConstants.CENTER);
     private final JLabel imageTitleLabel = new JLabel("商品圖片", SwingConstants.CENTER);
-
     private final DefaultListModel<String> historyListModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyListModel);
 
-    private final DefaultTableModel resultModel = new DefaultTableModel(new String[]{"平台", "商品名稱", "價格", "網址"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
-        }
-    };
-
-    private final DefaultTableModel favoriteModel = new DefaultTableModel(new String[]{"平台", "商品名稱", "價格", "網址"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
-        }
-    };
-
-    private final JTable resultTable = new JTable(resultModel);
-    private final JTable favoriteTable = new JTable(favoriteModel);
+    private final JPanel resultGrid = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
+    private final JPanel favoriteGrid = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
 
     private final List<Product> allProducts = new ArrayList<>();
     private final FavoriteManager favoriteManager = new FavoriteManager();
@@ -75,103 +71,59 @@ public class MainUI extends JFrame {
     private final HistoryManager historyManager = new HistoryManager();
     private final List<String> searchHistory = historyManager.getSearchHistory();
 
+    private Product selectedProduct = null;
+    private boolean selectedFromFavorite = false;
+
     public MainUI() {
         setTitle("智慧購物比價追蹤器");
-        setSize(1100, 720);
+        setSize(1180, 760);
+        setMinimumSize(new Dimension(1050, 680));
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         initLookAndFeel();
         initLayout();
         initEvents();
-        refreshFavoriteTable();
+        refreshFavoriteCards();
         refreshHistoryList();
     }
 
+    private boolean isFavorite(Product product) {
+        if (product == null) return false;
+        for (Product p : favoriteProducts) {
+            if (isSameProduct(p, product)) return true;
+        }
+        return false;
+    }
+
+    private void removeFavoriteProduct(Product product) {
+        if (product == null) return;
+        favoriteProducts.removeIf(p -> isSameProduct(p, product));
+    }
+
     private void initLookAndFeel() {
+        Font base = new Font("Microsoft JhengHei", Font.PLAIN, 14);
         UIManager.put("Button.font", new Font("Microsoft JhengHei", Font.BOLD, 14));
-        UIManager.put("Label.font", new Font("Microsoft JhengHei", Font.PLAIN, 14));
-        UIManager.put("CheckBox.font", new Font("Microsoft JhengHei", Font.PLAIN, 14));
-        UIManager.put("ComboBox.font", new Font("Microsoft JhengHei", Font.PLAIN, 14));
-        UIManager.put("Table.font", new Font("Microsoft JhengHei", Font.PLAIN, 13));
-        UIManager.put("Table.rowHeight", 30);
+        UIManager.put("Label.font", base);
+        UIManager.put("CheckBox.font", base);
+        UIManager.put("ComboBox.font", base);
+        UIManager.put("TextField.font", base);
+        UIManager.put("TabbedPane.font", new Font("Microsoft JhengHei", Font.BOLD, 14));
     }
 
     private void initLayout() {
-        JPanel root = new JPanel(new BorderLayout(15, 15));
-        root.setBorder(new EmptyBorder(18, 18, 18, 18));
-        root.setBackground(new Color(245, 247, 250));
+        JPanel root = new JPanel(new BorderLayout(18, 18));
+        root.setBackground(BG);
+        root.setBorder(new EmptyBorder(20, 22, 18, 22));
         setContentPane(root);
 
-        JLabel title = new JLabel("智慧購物比價追蹤器");
-        title.setFont(new Font("Microsoft JhengHei", Font.BOLD, 28));
-        title.setForeground(new Color(35, 48, 68));
-
-        JLabel subtitle = new JLabel("整合博客來、PChome、momo、Yahoo購物 商品搜尋，快速比較價格與收藏商品");
-        subtitle.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 14));
-        subtitle.setForeground(new Color(95, 105, 120));
-
-        JPanel titlePanel = new JPanel(new GridLayout(2, 1, 0, 4));
-        titlePanel.setOpaque(false);
-        titlePanel.add(title);
-        titlePanel.add(subtitle);
-        root.add(titlePanel, BorderLayout.NORTH);
-
-        JPanel searchPanel = createCardPanel();
-        searchPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(6, 6, 6, 6);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0;
-        searchPanel.add(new JLabel("關鍵字"), gbc);
-        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1;
-        keywordField.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 15));
-        searchPanel.add(keywordField, gbc);
-        gbc.gridx = 2; gbc.gridy = 0; gbc.weightx = 0;
-        stylePrimaryButton(searchButton);
-        searchPanel.add(searchButton, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 1;
-        searchPanel.add(new JLabel("平台"), gbc);
-        JPanel platformPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        platformPanel.setOpaque(false);
-        platformPanel.add(booksCheck);
-        platformPanel.add(pchomeCheck);
-        platformPanel.add(momoCheck);
-        platformPanel.add(yahooCheck);
-        gbc.gridx = 1; gbc.gridy = 1; gbc.gridwidth = 2;
-        searchPanel.add(platformPanel, gbc);
-        gbc.gridwidth = 1;
-
-        gbc.gridx = 0; gbc.gridy = 2;
-        searchPanel.add(new JLabel("價格範圍"), gbc);
-        JPanel pricePanel = new JPanel(new GridLayout(1, 4, 8, 0));
-        pricePanel.setOpaque(false);
-        pricePanel.add(minPriceField);
-        pricePanel.add(new JLabel("到"));
-        pricePanel.add(maxPriceField);
-        pricePanel.add(sortBox);
-        minPriceField.setToolTipText("最低價格，可留空");
-        maxPriceField.setToolTipText("最高價格，可留空");
-        gbc.gridx = 1; gbc.gridy = 2; gbc.gridwidth = 2;
-        searchPanel.add(pricePanel, gbc);
-
-        root.add(searchPanel, BorderLayout.WEST);
+        root.add(createHeroPanel(), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.setFont(new Font("Microsoft JhengHei", Font.BOLD, 14));
-
-        setupTable(resultTable);
-        setupTable(favoriteTable);
-
-        JPanel resultPanel = createTablePanel(resultTable);
-        JPanel favoritePanel = createTablePanel(favoriteTable);
-        JPanel historyPanel = createHistoryPanel();
-
-        tabs.addTab("搜尋結果", resultPanel);
-        tabs.addTab("我的收藏", favoritePanel);
-        tabs.addTab("搜尋歷史", historyPanel);
+        tabs.setOpaque(false);
+        tabs.addTab("搜尋結果", createScrollCardPanel(resultGrid));
+        tabs.addTab("我的收藏", createScrollCardPanel(favoriteGrid));
+        tabs.addTab("搜尋歷史", createHistoryPanel());
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tabs, createImagePanel());
         splitPane.setResizeWeight(0.78);
@@ -179,8 +131,81 @@ public class MainUI extends JFrame {
         splitPane.setOpaque(false);
         root.add(splitPane, BorderLayout.CENTER);
 
-        JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
-        bottomPanel.setOpaque(false);
+        root.add(createBottomPanel(), BorderLayout.SOUTH);
+    }
+
+    private JPanel createHeroPanel() {
+        JPanel hero = roundPanel(CARD, 22);
+        hero.setLayout(new BorderLayout(18, 14));
+        hero.setBorder(new EmptyBorder(22, 24, 20, 24));
+
+        JPanel titleBox = new JPanel(new GridLayout(2, 1, 0, 4));
+        titleBox.setOpaque(false);
+
+        JLabel title = new JLabel("智慧購物比價追蹤器");
+        title.setFont(new Font("Microsoft JhengHei", Font.BOLD, 30));
+        title.setForeground(MAIN_DARK);
+
+        JLabel subtitle = new JLabel("用更舒服的方式，找到真正值得買的商品");
+        subtitle.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 15));
+        subtitle.setForeground(MUTED);
+
+        titleBox.add(title);
+        titleBox.add(subtitle);
+        hero.add(titleBox, BorderLayout.WEST);
+
+        JPanel searchBox = new JPanel(new BorderLayout(12, 10));
+        searchBox.setOpaque(false);
+
+        JPanel searchLine = new JPanel(new BorderLayout(10, 0));
+        searchLine.setOpaque(false);
+        keywordField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(LINE),
+                new EmptyBorder(10, 14, 10, 14)
+        ));
+        keywordField.setToolTipText("輸入想搜尋的商品，例如：手機、耳機、鍵盤");
+        searchLine.add(keywordField, BorderLayout.CENTER);
+        stylePrimaryButton(searchButton);
+        searchLine.add(searchButton, BorderLayout.EAST);
+        searchBox.add(searchLine, BorderLayout.NORTH);
+
+        JPanel filterLine = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filterLine.setOpaque(false);
+        styleChip(booksCheck);
+        styleChip(pchomeCheck);
+        styleChip(momoCheck);
+        styleChip(yahooCheck);
+        filterLine.add(new JLabel("平台"));
+        filterLine.add(booksCheck);
+        filterLine.add(pchomeCheck);
+        filterLine.add(momoCheck);
+        filterLine.add(yahooCheck);
+
+        minPriceField.setColumns(6);
+        maxPriceField.setColumns(6);
+        minPriceField.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(LINE), new EmptyBorder(6, 8, 6, 8)));
+        maxPriceField.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(LINE), new EmptyBorder(6, 8, 6, 8)));
+        sortBox.setBackground(Color.WHITE);
+
+        filterLine.add(Box.createHorizontalStrut(10));
+        filterLine.add(new JLabel("價格"));
+        filterLine.add(minPriceField);
+        filterLine.add(new JLabel("—"));
+        filterLine.add(maxPriceField);
+        filterLine.add(sortBox);
+
+        searchBox.add(filterLine, BorderLayout.SOUTH);
+        hero.add(searchBox, BorderLayout.CENTER);
+
+        return hero;
+    }
+
+    private JPanel createBottomPanel() {
+        JPanel bottom = new JPanel(new BorderLayout(10, 10));
+        bottom.setOpaque(false);
+
+        statusLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
+        statusLabel.setForeground(MUTED);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
@@ -195,61 +220,33 @@ public class MainUI extends JFrame {
         buttonPanel.add(exportFavoriteCsvButton);
         buttonPanel.add(openButton);
 
-        statusLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
-        statusLabel.setForeground(new Color(85, 95, 110));
-        bottomPanel.add(statusLabel, BorderLayout.WEST);
-        bottomPanel.add(buttonPanel, BorderLayout.EAST);
-
-        root.add(bottomPanel, BorderLayout.SOUTH);
+        bottom.add(statusLabel, BorderLayout.WEST);
+        bottom.add(buttonPanel, BorderLayout.EAST);
+        return bottom;
     }
 
-    private JPanel createCardPanel() {
-        JPanel panel = new JPanel();
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(225, 230, 238)),
-                new EmptyBorder(15, 15, 15, 15)
-        ));
-        return panel;
-    }
-
-    private JPanel createTablePanel(JTable table) {
-        JPanel panel = createCardPanel();
-        panel.setLayout(new BorderLayout());
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel createImagePanel() {
-        JPanel panel = createCardPanel();
-        panel.setPreferredSize(new Dimension(250, 0));
-        panel.setLayout(new BorderLayout(8, 8));
-
-        imageTitleLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 15));
-        imageTitleLabel.setForeground(new Color(35, 48, 68));
-        panel.add(imageTitleLabel, BorderLayout.NORTH);
-
-        imageLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
-        imageLabel.setForeground(new Color(95, 105, 120));
-        imageLabel.setBorder(BorderFactory.createLineBorder(new Color(225, 230, 238)));
-        imageLabel.setOpaque(true);
-        imageLabel.setBackground(Color.WHITE);
-        panel.add(imageLabel, BorderLayout.CENTER);
-
-        return panel;
+    private JScrollPane createScrollCardPanel(JPanel grid) {
+        grid.setOpaque(false);
+        JScrollPane scroll = new JScrollPane(grid);
+        scroll.setBorder(null);
+        scroll.getViewport().setOpaque(false);
+        scroll.setOpaque(false);
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        return scroll;
     }
 
     private JPanel createHistoryPanel() {
-        JPanel panel = createCardPanel();
-        panel.setLayout(new BorderLayout(10, 10));
+        JPanel panel = roundPanel(CARD, 18);
+        panel.setLayout(new BorderLayout(12, 12));
+        panel.setBorder(new EmptyBorder(18, 18, 18, 18));
 
         JLabel hintLabel = new JLabel("雙擊歷史關鍵字，或選取後按按鈕，即可重新搜尋");
-        hintLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
-        hintLabel.setForeground(new Color(85, 95, 110));
+        hintLabel.setForeground(MUTED);
         panel.add(hintLabel, BorderLayout.NORTH);
 
-        historyList.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 14));
+        historyList.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 15));
         historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        historyList.setFixedCellHeight(36);
         panel.add(new JScrollPane(historyList), BorderLayout.CENTER);
 
         JPanel historyButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
@@ -265,37 +262,186 @@ public class MainUI extends JFrame {
         return panel;
     }
 
-    private void setupTable(JTable table) {
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setShowGrid(false);
-        table.setIntercellSpacing(new Dimension(0, 0));
-        table.setRowHeight(34);
-        table.getColumnModel().getColumn(0).setPreferredWidth(90);
-        table.getColumnModel().getColumn(1).setPreferredWidth(450);
-        table.getColumnModel().getColumn(2).setPreferredWidth(90);
-        table.getColumnModel().getColumn(3).setPreferredWidth(420);
+    private JPanel createImagePanel() {
+        JPanel panel = roundPanel(CARD, 18);
+        panel.setPreferredSize(new Dimension(260, 0));
+        panel.setLayout(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        JTableHeader header = table.getTableHeader();
-        header.setFont(new Font("Microsoft JhengHei", Font.BOLD, 14));
-        header.setBackground(new Color(235, 239, 245));
-        header.setForeground(new Color(35, 48, 68));
+        imageTitleLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 16));
+        imageTitleLabel.setForeground(MAIN_DARK);
+        panel.add(imageTitleLabel, BorderLayout.NORTH);
+
+        imageLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
+        imageLabel.setForeground(MUTED);
+        imageLabel.setOpaque(true);
+        imageLabel.setBackground(new Color(252, 249, 244));
+        imageLabel.setBorder(BorderFactory.createLineBorder(LINE));
+        panel.add(imageLabel, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel createProductCard(Product product, boolean fromFavorite) {
+        JPanel card = roundPanel(CARD, 18);
+        card.setPreferredSize(new Dimension(245, 220));
+        card.setLayout(new BorderLayout(10, 8));
+        card.setBorder(new EmptyBorder(14, 14, 14, 14));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JLabel platform = new JLabel(product.getPlatform());
+        platform.setOpaque(true);
+        platform.setBackground(CHIP);
+        platform.setForeground(MAIN_DARK);
+        platform.setBorder(new EmptyBorder(4, 9, 4, 9));
+        platform.setFont(new Font("Microsoft JhengHei", Font.BOLD, 12));
+
+        JLabel price = new JLabel(String.format("NT$ %.0f", product.getPrice()));
+        price.setFont(new Font("Microsoft JhengHei", Font.BOLD, 20));
+        price.setForeground(MAIN_DARK);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(platform, BorderLayout.WEST);
+        top.add(price, BorderLayout.EAST);
+        card.add(top, BorderLayout.NORTH);
+
+        JTextArea name = new JTextArea(product.getName());
+        name.setLineWrap(true);
+        name.setWrapStyleWord(true);
+        name.setEditable(false);
+        name.setOpaque(false);
+        name.setForeground(TEXT);
+        name.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 14));
+        card.add(name, BorderLayout.CENTER);
+
+        JPanel actions = new JPanel(new GridLayout(1, 2, 8, 0));
+        actions.setOpaque(false);
+        JButton view = new JButton("查看");
+        boolean favoriteNow = isFavorite(product);
+        JButton fav = new JButton(favoriteNow ? "已收藏" : "收藏");
+        fav.setIcon(new HeartIcon(favoriteNow));
+        styleMiniButton(view, true);
+        styleFavoriteButton(fav, favoriteNow);
+        actions.add(fav);
+        actions.add(view);
+        card.add(actions, BorderLayout.SOUTH);
+
+        MouseAdapter selectAction = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                selectProduct(product, fromFavorite);
+            }
+        };
+        card.addMouseListener(selectAction);
+        name.addMouseListener(selectAction);
+
+        view.addActionListener(e -> {
+            selectProduct(product, fromFavorite);
+            openSelectedProduct();
+        });
+
+        fav.addActionListener(e -> {
+            boolean nowFavorite = isFavorite(product);
+
+            if (nowFavorite) {
+                removeFavoriteProduct(product);
+                favoriteManager.saveFavoriteProducts();
+                selectedProduct = product;
+                selectedFromFavorite = false;
+                statusLabel.setText("已取消收藏：" + product.getName());
+            } else {
+                favoriteProducts.add(product);
+                favoriteManager.saveFavoriteProducts();
+                selectedProduct = product;
+                selectedFromFavorite = false;
+                statusLabel.setText("已加入收藏：" + product.getName());
+            }
+
+            refreshResultCards();
+            refreshFavoriteCards();
+        });
+
+        return card;
+    }
+
+    private void selectProduct(Product product, boolean fromFavorite) {
+        selectedProduct = product;
+        selectedFromFavorite = fromFavorite;
+        showProductImage(product);
+        statusLabel.setText("已選取：" + product.getName());
+    }
+
+    private JPanel roundPanel(Color color, int radius) {
+        return new JPanel() {
+            { setOpaque(false); }
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+                g2.setColor(LINE);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+    }
+
+    private void styleChip(JCheckBox box) {
+        box.setOpaque(true);
+        box.setBackground(CHIP);
+        box.setForeground(MAIN_DARK);
+        box.setFocusPainted(false);
+        box.setBorder(new EmptyBorder(6, 10, 6, 10));
     }
 
     private void stylePrimaryButton(JButton button) {
-        button.setBackground(new Color(45, 105, 255));
+        button.setBackground(MAIN);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
-        button.setBorder(new EmptyBorder(9, 18, 9, 18));
+        button.setBorder(new EmptyBorder(10, 22, 10, 22));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
     private void styleSecondaryButton(JButton button) {
-        button.setBackground(Color.WHITE);
-        button.setForeground(new Color(45, 105, 255));
+        button.setBackground(CARD);
+        button.setForeground(MAIN_DARK);
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(45, 105, 255)),
-                new EmptyBorder(8, 16, 8, 16)
+                BorderFactory.createLineBorder(MAIN),
+                new EmptyBorder(8, 14, 8, 14)
         ));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+
+    private void styleMiniButton(JButton button, boolean filled) {
+        button.setFocusPainted(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        if (filled) {
+            button.setBackground(MAIN);
+            button.setForeground(Color.WHITE);
+        } else {
+            button.setBackground(CARD);
+            button.setForeground(MAIN_DARK);
+        }
+    }
+
+    private void styleFavoriteButton(JButton button, boolean favorite) {
+        button.setFocusPainted(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setHorizontalAlignment(SwingConstants.CENTER);
+        button.setIconTextGap(6);
+        if (favorite) {
+            button.setBackground(new Color(255, 241, 241));
+            button.setForeground(new Color(170, 57, 57));
+            button.setBorder(BorderFactory.createLineBorder(new Color(210, 120, 120)));
+        } else {
+            button.setBackground(CARD);
+            button.setForeground(MAIN_DARK);
+            button.setBorder(BorderFactory.createLineBorder(MAIN));
+        }
     }
 
     private void initEvents() {
@@ -309,37 +455,12 @@ public class MainUI extends JFrame {
         deleteHistoryButton.addActionListener(e -> deleteSelectedHistory());
         clearHistoryButton.addActionListener(e -> clearSearchHistory());
 
-        MouseAdapter openByDoubleClick = new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    openSelectedProduct();
-                }
-            }
-        };
-        resultTable.addMouseListener(openByDoubleClick);
-        favoriteTable.addMouseListener(openByDoubleClick);
-
-        resultTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && resultTable.getSelectedRow() >= 0) {
-                favoriteTable.clearSelection();
-                showProductImage(allProducts.get(resultTable.getSelectedRow()));
-            }
-        });
-
-        favoriteTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && favoriteTable.getSelectedRow() >= 0) {
-                resultTable.clearSelection();
-                showProductImage(favoriteProducts.get(favoriteTable.getSelectedRow()));
-            }
-        });
+        keywordField.addActionListener(e -> searchProducts());
 
         historyList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    searchFromSelectedHistory();
-                }
+                if (e.getClickCount() == 2) searchFromSelectedHistory();
             }
         });
     }
@@ -369,15 +490,13 @@ public class MainUI extends JFrame {
             return;
         }
 
-        searchButton.setEnabled(false);
-        favoriteButton.setEnabled(false);
-        openButton.setEnabled(false);
-        deleteFavoriteButton.setEnabled(false);
-        refreshFavoritePriceButton.setEnabled(false);
-        exportFavoriteCsvButton.setEnabled(false);
-        resultModel.setRowCount(0);
+        setButtonsEnabled(false);
+        resultGrid.removeAll();
         allProducts.clear();
-        statusLabel.setText("準備搜尋，請稍候...");
+        selectedProduct = null;
+        imageLabel.setIcon(null);
+        imageLabel.setText("選取商品後顯示圖片");
+        statusLabel.setText("正在為你尋找商品...");
         historyManager.addHistory(keyword);
         refreshHistoryList();
 
@@ -388,53 +507,39 @@ public class MainUI extends JFrame {
 
                 if (booksCheck.isSelected()) {
                     publish("正在搜尋博客來...");
-                    try {
-                        list.addAll(new BooksCrawler().search(keyword));
-                    } catch (Exception ex) {
-                        publish("博客來搜尋失敗，已略過：" + ex.getMessage());
-                    }
+                    try { list.addAll(new BooksCrawler().search(keyword)); }
+                    catch (Exception ex) { publish("博客來搜尋失敗，已略過：" + ex.getMessage()); }
                 }
                 if (pchomeCheck.isSelected()) {
                     publish("正在搜尋 PChome...");
-                    try {
-                        list.addAll(new PChomeCrawler().search(keyword));
-                    } catch (Exception ex) {
-                        publish("PChome 搜尋失敗，已略過：" + ex.getMessage());
-                    }
+                    try { list.addAll(new PChomeCrawler().search(keyword)); }
+                    catch (Exception ex) { publish("PChome 搜尋失敗，已略過：" + ex.getMessage()); }
                 }
                 if (momoCheck.isSelected()) {
                     publish("正在搜尋 momo...");
-                    try {
-                        list.addAll(new MomoCrawler().search(keyword));
-                    } catch (Exception ex) {
-                        publish("momo 搜尋失敗，已略過：" + ex.getMessage());
-                    }
+                    try { list.addAll(new MomoCrawler().search(keyword)); }
+                    catch (Exception ex) { publish("momo 搜尋失敗，已略過：" + ex.getMessage()); }
                 }
                 if (yahooCheck.isSelected()) {
                     publish("正在搜尋 Yahoo購物...");
-                    try {
-                        list.addAll(new YahooCrawler().search(keyword));
-                    } catch (Exception ex) {
-                        publish("Yahoo購物搜尋失敗，已略過：" + ex.getMessage());
-                    }
+                    try { list.addAll(new YahooCrawler().search(keyword)); }
+                    catch (Exception ex) { publish("Yahoo購物搜尋失敗，已略過：" + ex.getMessage()); }
                 }
 
-                publish("正在套用價格篩選與排序...");
+                publish("正在套用篩選與排序...");
                 return applyFilterAndSort(list);
             }
 
             @Override
             protected void process(List<String> chunks) {
-                if (!chunks.isEmpty()) {
-                    statusLabel.setText(chunks.get(chunks.size() - 1));
-                }
+                if (!chunks.isEmpty()) statusLabel.setText(chunks.get(chunks.size() - 1));
             }
 
             @Override
             protected void done() {
                 try {
                     allProducts.addAll(get());
-                    refreshResultTable();
+                    refreshResultCards();
                     if (allProducts.isEmpty()) {
                         statusLabel.setText("搜尋完成，但沒有符合條件的商品");
                         JOptionPane.showMessageDialog(MainUI.this, "沒有找到符合條件的商品，可以換關鍵字或放寬價格範圍。", "搜尋結果", JOptionPane.INFORMATION_MESSAGE);
@@ -445,17 +550,20 @@ public class MainUI extends JFrame {
                     statusLabel.setText("搜尋失敗：" + ex.getMessage());
                     JOptionPane.showMessageDialog(MainUI.this, "搜尋失敗：" + ex.getMessage(), "搜尋錯誤", JOptionPane.ERROR_MESSAGE);
                 } finally {
-                    searchButton.setEnabled(true);
-                    favoriteButton.setEnabled(true);
-                    openButton.setEnabled(true);
-                    deleteFavoriteButton.setEnabled(true);
-                    refreshFavoritePriceButton.setEnabled(true);
-                    exportFavoriteCsvButton.setEnabled(true);
+                    setButtonsEnabled(true);
                 }
             }
         };
-
         worker.execute();
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        searchButton.setEnabled(enabled);
+        favoriteButton.setEnabled(enabled);
+        openButton.setEnabled(enabled);
+        deleteFavoriteButton.setEnabled(enabled);
+        refreshFavoritePriceButton.setEnabled(enabled);
+        exportFavoriteCsvButton.setEnabled(enabled);
     }
 
     private List<Product> applyFilterAndSort(List<Product> list) {
@@ -466,21 +574,14 @@ public class MainUI extends JFrame {
         for (Product product : list) {
             boolean matchMin = min == 0 || product.getPrice() >= min;
             boolean matchMax = max == 0 || product.getPrice() <= max;
-            if (matchMin && matchMax) {
-                filtered.add(product);
-            }
+            if (matchMin && matchMax) filtered.add(product);
         }
 
         String sort = (String) sortBox.getSelectedItem();
-        if ("價格由高到低".equals(sort)) {
-            filtered.sort((a, b) -> Double.compare(b.getPrice(), a.getPrice()));
-        } else if ("平台名稱".equals(sort)) {
-            filtered.sort(Comparator.comparing(Product::getPlatform));
-        } else if ("商品名稱".equals(sort)) {
-            filtered.sort(Comparator.comparing(Product::getName));
-        } else {
-            filtered.sort(Comparator.comparingDouble(Product::getPrice));
-        }
+        if ("價格由高到低".equals(sort)) filtered.sort((a, b) -> Double.compare(b.getPrice(), a.getPrice()));
+        else if ("平台名稱".equals(sort)) filtered.sort(Comparator.comparing(Product::getPlatform));
+        else if ("商品名稱".equals(sort)) filtered.sort(Comparator.comparing(Product::getName));
+        else filtered.sort(Comparator.comparingDouble(Product::getPrice));
 
         return filtered;
     }
@@ -494,44 +595,46 @@ public class MainUI extends JFrame {
         if (text.isEmpty()) return 0;
         try {
             double value = Double.parseDouble(text);
-            if (value < 0) {
-                throw new IllegalArgumentException(fieldName + "不能小於 0");
-            }
+            if (value < 0) throw new IllegalArgumentException(fieldName + "不能小於 0");
             return value;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(fieldName + "請輸入數字，例如 100 或 1000");
         }
     }
 
-    private void refreshResultTable() {
-        resultModel.setRowCount(0);
-        for (Product product : allProducts) {
-            resultModel.addRow(new Object[]{
-                    product.getPlatform(),
-                    product.getName(),
-                    String.format("NT$%.0f", product.getPrice()),
-                    product.getUrl()
-            });
+    private void refreshResultCards() {
+        resultGrid.removeAll();
+        if (allProducts.isEmpty()) {
+            resultGrid.add(emptyHint("目前沒有搜尋結果"));
+        } else {
+            for (Product product : allProducts) resultGrid.add(createProductCard(product, false));
         }
+        resultGrid.revalidate();
+        resultGrid.repaint();
     }
 
-    private void refreshFavoriteTable() {
-        favoriteModel.setRowCount(0);
-        for (Product product : favoriteProducts) {
-            favoriteModel.addRow(new Object[]{
-                    product.getPlatform(),
-                    product.getName(),
-                    String.format("NT$%.0f", product.getPrice()),
-                    product.getUrl()
-            });
+    private void refreshFavoriteCards() {
+        favoriteGrid.removeAll();
+        if (favoriteProducts.isEmpty()) {
+            favoriteGrid.add(emptyHint("目前沒有收藏商品"));
+        } else {
+            for (Product product : favoriteProducts) favoriteGrid.add(createProductCard(product, true));
         }
+        favoriteGrid.revalidate();
+        favoriteGrid.repaint();
+    }
+
+    private JLabel emptyHint(String text) {
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setForeground(MUTED);
+        label.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 16));
+        label.setPreferredSize(new Dimension(300, 120));
+        return label;
     }
 
     private void refreshHistoryList() {
         historyListModel.clear();
-        for (int i = searchHistory.size() - 1; i >= 0; i--) {
-            historyListModel.addElement(searchHistory.get(i));
-        }
+        for (int i = searchHistory.size() - 1; i >= 0; i--) historyListModel.addElement(searchHistory.get(i));
     }
 
     private void searchFromSelectedHistory() {
@@ -551,16 +654,8 @@ public class MainUI extends JFrame {
             return;
         }
 
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要刪除這筆搜尋歷史？\n" + keyword,
-                "刪除搜尋歷史",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int option = JOptionPane.showConfirmDialog(this, "確定要刪除這筆搜尋歷史？\n" + keyword, "刪除搜尋歷史", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
 
         searchHistory.remove(keyword);
         historyManager.saveSearchHistory();
@@ -574,16 +669,8 @@ public class MainUI extends JFrame {
             return;
         }
 
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要清空所有搜尋歷史？",
-                "清空搜尋歷史",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int option = JOptionPane.showConfirmDialog(this, "確定要清空所有搜尋歷史？", "清空搜尋歷史", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
 
         searchHistory.clear();
         historyManager.saveSearchHistory();
@@ -592,58 +679,52 @@ public class MainUI extends JFrame {
     }
 
     private void addFavorite() {
-        int row = resultTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "請先在搜尋結果中選擇商品");
+        if (selectedProduct == null) {
+            JOptionPane.showMessageDialog(this, "請先選擇一個搜尋結果商品");
+            return;
+        }
+        if (selectedFromFavorite) {
+            JOptionPane.showMessageDialog(this, "這個商品已經在收藏中");
             return;
         }
 
-        Product selected = allProducts.get(row);
         for (Product product : favoriteProducts) {
-            if (isSameProduct(product, selected)) {
+            if (isSameProduct(product, selectedProduct)) {
                 JOptionPane.showMessageDialog(this, "這個商品已經收藏過了，收藏清單不會重複加入", "重複收藏", JOptionPane.INFORMATION_MESSAGE);
-                statusLabel.setText("此商品已在收藏中：" + selected.getName());
+                statusLabel.setText("此商品已在收藏中：" + selectedProduct.getName());
                 return;
             }
         }
 
-        favoriteProducts.add(selected);
+        favoriteProducts.add(selectedProduct);
         favoriteManager.saveFavoriteProducts();
-        refreshFavoriteTable();
-        statusLabel.setText("已加入收藏：" + selected.getName());
+        refreshFavoriteCards();
+        statusLabel.setText("已加入收藏：" + selectedProduct.getName());
     }
 
     private boolean isSameProduct(Product a, Product b) {
         if (a == null || b == null) return false;
-        if (a.getUrl() != null && b.getUrl() != null && !a.getUrl().isEmpty() && !b.getUrl().isEmpty()) {
-            return a.getUrl().equals(b.getUrl());
-        }
+        if (a.getUrl() != null && b.getUrl() != null && !a.getUrl().isEmpty() && !b.getUrl().isEmpty()) return a.getUrl().equals(b.getUrl());
         return a.getPlatform().equals(b.getPlatform()) && a.getName().equals(b.getName());
     }
 
     private void removeFavorite() {
-        int row = favoriteTable.getSelectedRow();
-        if (row < 0) {
+        if (selectedProduct == null || !selectedFromFavorite) {
             JOptionPane.showMessageDialog(this, "請先在我的收藏中選擇要刪除的商品");
             return;
         }
 
-        Product selected = favoriteProducts.get(row);
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "確定要刪除收藏商品？\n" + selected.getName(),
-                "刪除收藏",
-                JOptionPane.YES_NO_OPTION
-        );
+        int index = favoriteProducts.indexOf(selectedProduct);
+        if (index < 0) return;
 
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int option = JOptionPane.showConfirmDialog(this, "確定要刪除收藏商品？\n" + selectedProduct.getName(), "刪除收藏", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
 
-        favoriteProducts.remove(row);
+        Product removed = favoriteProducts.remove(index);
+        selectedProduct = null;
         favoriteManager.saveFavoriteProducts();
-        refreshFavoriteTable();
-        statusLabel.setText("已刪除收藏：" + selected.getName());
+        refreshFavoriteCards();
+        statusLabel.setText("已刪除收藏：" + removed.getName());
     }
 
     private void refreshFavoritePrices() {
@@ -652,59 +733,37 @@ public class MainUI extends JFrame {
             return;
         }
 
-        int option = JOptionPane.showConfirmDialog(
-                this,
-                "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？",
-                "重新整理收藏價格",
-                JOptionPane.YES_NO_OPTION
-        );
-        if (option != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int option = JOptionPane.showConfirmDialog(this, "將依收藏商品名稱重新搜尋目前價格，可能需要一些時間。是否繼續？", "重新整理收藏價格", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
 
-        searchButton.setEnabled(false);
-        favoriteButton.setEnabled(false);
-        deleteFavoriteButton.setEnabled(false);
-        refreshFavoritePriceButton.setEnabled(false);
-        exportFavoriteCsvButton.setEnabled(false);
-        openButton.setEnabled(false);
+        setButtonsEnabled(false);
         statusLabel.setText("正在重新整理收藏價格...");
 
         SwingWorker<Integer, String> worker = new SwingWorker<>() {
             @Override
             protected Integer doInBackground() {
                 int updatedCount = 0;
-
-                for (int i = 0; i < favoriteProducts.size(); i++) {
-                    Product oldProduct = favoriteProducts.get(i);
+                for (Product oldProduct : favoriteProducts) {
                     publish("正在更新收藏價格：" + oldProduct.getName());
-
                     try {
                         List<Product> candidates = searchSamePlatform(oldProduct);
                         Product matched = findBestMatch(oldProduct, candidates);
                         if (matched != null) {
                             oldProduct.setPrice(matched.getPrice());
-                            if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty()) {
-                                oldProduct.setImageUrl(matched.getImageUrl());
-                            }
-                            if (matched.getUrl() != null && !matched.getUrl().isEmpty()) {
-                                oldProduct.setUrl(matched.getUrl());
-                            }
+                            if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty()) oldProduct.setImageUrl(matched.getImageUrl());
+                            if (matched.getUrl() != null && !matched.getUrl().isEmpty()) oldProduct.setUrl(matched.getUrl());
                             updatedCount++;
                         }
                     } catch (Exception ex) {
                         publish("更新失敗，已略過：" + oldProduct.getName());
                     }
                 }
-
                 return updatedCount;
             }
 
             @Override
             protected void process(List<String> chunks) {
-                if (!chunks.isEmpty()) {
-                    statusLabel.setText(chunks.get(chunks.size() - 1));
-                }
+                if (!chunks.isEmpty()) statusLabel.setText(chunks.get(chunks.size() - 1));
             }
 
             @Override
@@ -712,30 +771,23 @@ public class MainUI extends JFrame {
                 try {
                     int updatedCount = get();
                     favoriteManager.saveFavoriteProducts();
-                    refreshFavoriteTable();
+                    refreshFavoriteCards();
                     statusLabel.setText("收藏價格更新完成，共更新 " + updatedCount + " 筆商品");
                     JOptionPane.showMessageDialog(MainUI.this, "收藏價格更新完成，共更新 " + updatedCount + " 筆商品。", "重新整理收藏價格", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(MainUI.this, "更新收藏價格失敗：" + ex.getMessage(), "錯誤", JOptionPane.ERROR_MESSAGE);
                     statusLabel.setText("更新收藏價格失敗");
                 } finally {
-                    searchButton.setEnabled(true);
-                    favoriteButton.setEnabled(true);
-                    deleteFavoriteButton.setEnabled(true);
-                    refreshFavoritePriceButton.setEnabled(true);
-                    exportFavoriteCsvButton.setEnabled(true);
-                    openButton.setEnabled(true);
+                    setButtonsEnabled(true);
                 }
             }
         };
-
         worker.execute();
     }
 
     private List<Product> searchSamePlatform(Product product) {
         String platform = product.getPlatform();
         String keyword = simplifyKeyword(product.getName());
-
         if ("博客來".equalsIgnoreCase(platform)) return new BooksCrawler().search(keyword);
         if ("PChome".equalsIgnoreCase(platform)) return new PChomeCrawler().search(keyword);
         if ("momo".equalsIgnoreCase(platform)) return new MomoCrawler().search(keyword);
@@ -746,27 +798,18 @@ public class MainUI extends JFrame {
     private String simplifyKeyword(String name) {
         if (name == null) return "";
         String cleaned = name.replaceAll("[【】\\[\\]（）(){}<>].*?[【】\\[\\]（）(){}<>]?", " ").trim();
-        if (cleaned.length() > 35) {
-            cleaned = cleaned.substring(0, 35);
-        }
+        if (cleaned.length() > 35) cleaned = cleaned.substring(0, 35);
         return cleaned.trim().isEmpty() ? name : cleaned;
     }
 
     private Product findBestMatch(Product oldProduct, List<Product> candidates) {
         if (candidates == null || candidates.isEmpty()) return null;
-
-        for (Product candidate : candidates) {
-            if (isSameProduct(oldProduct, candidate)) return candidate;
-        }
-
+        for (Product candidate : candidates) if (isSameProduct(oldProduct, candidate)) return candidate;
         String oldName = oldProduct.getName() == null ? "" : oldProduct.getName().toLowerCase();
         for (Product candidate : candidates) {
             String candidateName = candidate.getName() == null ? "" : candidate.getName().toLowerCase();
-            if (!candidateName.isEmpty() && (oldName.contains(candidateName) || candidateName.contains(oldName))) {
-                return candidate;
-            }
+            if (!candidateName.isEmpty() && (oldName.contains(candidateName) || candidateName.contains(oldName))) return candidate;
         }
-
         return candidates.get(0);
     }
 
@@ -784,9 +827,7 @@ public class MainUI extends JFrame {
         if (result != JFileChooser.APPROVE_OPTION) return;
 
         File file = chooser.getSelectedFile();
-        if (!file.getName().toLowerCase().endsWith(".csv")) {
-            file = new File(file.getParentFile(), file.getName() + ".csv");
-        }
+        if (!file.getName().toLowerCase().endsWith(".csv")) file = new File(file.getParentFile(), file.getName() + ".csv");
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             writer.write("platform,name,price,url,imageUrl");
@@ -803,19 +844,13 @@ public class MainUI extends JFrame {
     }
 
     private String toCsvLine(Product product) {
-        return escapeCsv(product.getPlatform()) + "," +
-                escapeCsv(product.getName()) + "," +
-                product.getPrice() + "," +
-                escapeCsv(product.getUrl()) + "," +
-                escapeCsv(product.getImageUrl());
+        return escapeCsv(product.getPlatform()) + "," + escapeCsv(product.getName()) + "," + product.getPrice() + "," + escapeCsv(product.getUrl()) + "," + escapeCsv(product.getImageUrl());
     }
 
     private String escapeCsv(String text) {
         if (text == null) return "";
         text = text.replace("\"", "\"\"");
-        if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
-            return "\"" + text + "\"";
-        }
+        if (text.contains(",") || text.contains("\"") || text.contains("\n")) return "\"" + text + "\"";
         return text;
     }
 
@@ -840,45 +875,25 @@ public class MainUI extends JFrame {
             @Override
             protected ImageIcon doInBackground() throws Exception {
                 ImageIO.scanForPlugins();
-
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
-                    new java.net.URL(imageUrl).openConnection();
-                conn.setRequestProperty("User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(imageUrl).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
                 conn.setRequestProperty("Accept", "image/jpeg,image/png,image/gif,image/webp,*/*");
                 conn.setRequestProperty("Accept-Language", "zh-TW,zh;q=0.9");
                 conn.setInstanceFollowRedirects(true);
 
-                // 根據平台設定對應的 Referer
                 String referer;
-                if (imageUrl.contains("yec.tw") || imageUrl.contains("yahoo")) {
-                    referer = "https://tw.buy.yahoo.com/";
-                } else if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) {
-                    referer = "https://24h.pchome.com.tw/";
-                } else if (imageUrl.contains("momo")) {
-                    referer = "https://www.momoshop.com.tw/";
-                } else {
-                    referer = "https://www.books.com.tw/";
-                }
+                if (imageUrl.contains("yec.tw") || imageUrl.contains("yahoo")) referer = "https://tw.buy.yahoo.com/";
+                else if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) referer = "https://24h.pchome.com.tw/";
+                else if (imageUrl.contains("momo")) referer = "https://www.momoshop.com.tw/";
+                else referer = "https://www.books.com.tw/";
                 conn.setRequestProperty("Referer", referer);
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
                 conn.connect();
-                int responseCode = conn.getResponseCode();
-                System.out.println("圖片回應碼: " + responseCode + " - " + imageUrl);
-                if (responseCode != 200) return null;
+                if (conn.getResponseCode() != 200) return null;
 
-                java.io.InputStream is = conn.getInputStream();
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int n;
-                while ((n = is.read(buffer)) != -1) baos.write(buffer, 0, n);
-                byte[] imageBytes = baos.toByteArray();
-
-                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageBytes);
-                BufferedImage image = ImageIO.read(bais);
+                BufferedImage image = ImageIO.read(conn.getInputStream());
                 if (image == null) return null;
-
                 Image scaled = scaleImage(image, 220, 260);
                 return new ImageIcon(scaled);
             }
@@ -911,26 +926,126 @@ public class MainUI extends JFrame {
     }
 
     private void openSelectedProduct() {
-        Product selected = getSelectedProduct();
-        if (selected == null) {
+        if (selectedProduct == null) {
             JOptionPane.showMessageDialog(this, "請先選擇一個商品");
             return;
         }
-
         try {
-            Desktop.getDesktop().browse(new URI(selected.getUrl()));
+            Desktop.getDesktop().browse(new URI(selectedProduct.getUrl()));
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "無法開啟網址：" + e.getMessage());
         }
     }
 
-    private Product getSelectedProduct() {
-        if (resultTable.getSelectedRow() >= 0) return allProducts.get(resultTable.getSelectedRow());
-        if (favoriteTable.getSelectedRow() >= 0) return favoriteProducts.get(favoriteTable.getSelectedRow());
-        return null;
-    }
-
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new MainUI().setVisible(true));
+    }
+
+    /**
+     * 自己畫愛心，不靠系統字型，所以不會再出現方框。
+     */
+    static class HeartIcon implements Icon {
+        private final boolean filled;
+
+        HeartIcon(boolean filled) {
+            this.filled = filled;
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 15;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 14;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            Path2D.Double heart = new Path2D.Double();
+            heart.moveTo(x + 7.5, y + 13);
+            heart.curveTo(x + 1, y + 8, x + 0, y + 4, x + 3.5, y + 2);
+            heart.curveTo(x + 5.5, y + 0.8, x + 7, y + 2, x + 7.5, y + 3.5);
+            heart.curveTo(x + 8, y + 2, x + 9.5, y + 0.8, x + 11.5, y + 2);
+            heart.curveTo(x + 15, y + 4, x + 14, y + 8, x + 7.5, y + 13);
+            heart.closePath();
+
+            if (filled) {
+                g2.setColor(new Color(210, 65, 65));
+                g2.fill(heart);
+            } else {
+                g2.setColor(new Color(128, 98, 70));
+                g2.setStroke(new BasicStroke(1.8f));
+                g2.draw(heart);
+            }
+            g2.dispose();
+        }
+    }
+
+    /**
+     * 讓商品卡片可以自動換行排列。
+     * 不需要額外檔案，直接放在 MainUI.java 最下面即可。
+     */
+    static class WrapLayout extends FlowLayout {
+        public WrapLayout(int align, int hgap, int vgap) {
+            super(align, hgap, vgap);
+        }
+
+        @Override
+        public Dimension preferredLayoutSize(Container target) {
+            return layoutSize(target, true);
+        }
+
+        @Override
+        public Dimension minimumLayoutSize(Container target) {
+            Dimension minimum = layoutSize(target, false);
+            minimum.width -= (getHgap() + 1);
+            return minimum;
+        }
+
+        private Dimension layoutSize(Container target, boolean preferred) {
+            synchronized (target.getTreeLock()) {
+                int targetWidth = target.getWidth();
+                if (targetWidth == 0) targetWidth = Integer.MAX_VALUE;
+
+                Insets insets = target.getInsets();
+                int horizontalInsetsAndGap = insets.left + insets.right + (getHgap() * 2);
+                int maxWidth = targetWidth - horizontalInsetsAndGap;
+
+                Dimension dim = new Dimension(0, 0);
+                int rowWidth = 0;
+                int rowHeight = 0;
+
+                int nmembers = target.getComponentCount();
+                for (int i = 0; i < nmembers; i++) {
+                    Component m = target.getComponent(i);
+                    if (m.isVisible()) {
+                        Dimension d = preferred ? m.getPreferredSize() : m.getMinimumSize();
+                        if (rowWidth + d.width > maxWidth) {
+                            addRow(dim, rowWidth, rowHeight);
+                            rowWidth = 0;
+                            rowHeight = 0;
+                        }
+                        if (rowWidth != 0) rowWidth += getHgap();
+                        rowWidth += d.width;
+                        rowHeight = Math.max(rowHeight, d.height);
+                    }
+                }
+                addRow(dim, rowWidth, rowHeight);
+                dim.width += horizontalInsetsAndGap;
+                dim.height += insets.top + insets.bottom + getVgap() * 2;
+                return dim;
+            }
+        }
+
+        private void addRow(Dimension dim, int rowWidth, int rowHeight) {
+            dim.width = Math.max(dim.width, rowWidth);
+            if (dim.height > 0) dim.height += getVgap();
+            dim.height += rowHeight;
+        }
     }
 }
