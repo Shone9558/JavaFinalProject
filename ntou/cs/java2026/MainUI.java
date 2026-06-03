@@ -25,6 +25,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 public class MainUI extends JFrame {
 
@@ -62,8 +64,13 @@ public class MainUI extends JFrame {
     private final DefaultListModel<String> historyListModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyListModel);
 
-    private final JPanel resultGrid = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
-    private final JPanel favoriteGrid = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
+    private static final int CARD_WIDTH = 245;
+    private static final int CARD_HEIGHT = 220;
+
+    private final JPanel resultGrid = new ScrollableWrapPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
+    private final JPanel favoriteGrid = new ScrollableWrapPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
+
+    private BufferedImage currentPreviewImage = null;
 
     private final List<Product> allProducts = new ArrayList<>();
     private FavoriteManager favoriteManager;
@@ -248,12 +255,15 @@ public class MainUI extends JFrame {
 
     private JScrollPane createScrollCardPanel(JPanel grid) {
         grid.setOpaque(false);
+
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setBorder(null);
         scroll.getViewport().setOpaque(false);
         scroll.setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
-        return scroll;
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+    return scroll;
     }
 
     private JPanel createHistoryPanel() {
@@ -292,7 +302,12 @@ public class MainUI extends JFrame {
         imageTitleLabel.setFont(new Font("Microsoft JhengHei", Font.BOLD, 16));
         imageTitleLabel.setForeground(MAIN_DARK);
         panel.add(imageTitleLabel, BorderLayout.NORTH);
-
+        imageLabel.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                updatePreviewImage();
+            }
+        });
         imageLabel.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 13));
         imageLabel.setForeground(MUTED);
         imageLabel.setOpaque(true);
@@ -302,10 +317,26 @@ public class MainUI extends JFrame {
 
         return panel;
     }
+    private int getCardWidth() {
+    int width = resultGrid.getWidth();
 
+    if (width <= 900) {
+        return 220;
+    } else if (width <= 1200) {
+        return 250;
+    } else if (width <= 1500) {
+        return 280;
+    }
+
+    return 300;
+    }
     private JPanel createProductCard(Product product, boolean fromFavorite) {
         JPanel card = roundPanel(CARD, 18);
-        card.setPreferredSize(new Dimension(245, 220));
+        int cardWidth = getCardWidth();
+        Dimension cardSize = new Dimension(cardWidth, CARD_HEIGHT); 
+        card.setPreferredSize(cardSize);
+        card.setMinimumSize(cardSize);
+        card.setMaximumSize(cardSize);
         card.setLayout(new BorderLayout(10, 8));
         card.setBorder(new EmptyBorder(14, 14, 14, 14));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -475,7 +506,13 @@ public class MainUI extends JFrame {
         logoutButton.addActionListener(e -> logout());
 
         keywordField.addActionListener(e -> searchProducts());
-
+        addComponentListener(new ComponentAdapter() {
+         @Override
+        public void componentResized(ComponentEvent e) {
+            refreshResultCards();
+            refreshFavoriteCards();
+        }
+});
         historyList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -959,67 +996,77 @@ public class MainUI extends JFrame {
     }
 
     private void showProductImage(Product product) {
-        if (product == null) {
-            imageLabel.setIcon(null);
-            imageLabel.setText("選取商品後顯示圖片");
-            return;
-        }
-        String imageUrl = product.getImageUrl();
-        imageTitleLabel.setText("商品圖片");
+    currentPreviewImage = null;
+
+    if (product == null) {
         imageLabel.setIcon(null);
-        if (imageUrl == null || imageUrl.trim().isEmpty() || imageUrl.startsWith("data:")) {
-            imageLabel.setText("此商品沒有圖片");
-            return;
-        }
-        imageLabel.setText("圖片載入中...");
-        SwingWorker<ImageIcon, Void> worker = new SwingWorker<>() {
-            @Override
-            protected ImageIcon doInBackground() throws Exception {
-                ImageIO.scanForPlugins();
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(imageUrl).openConnection();
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-                conn.setRequestProperty("Accept", "image/jpeg,image/png,image/gif,image/webp,*/*");
-                conn.setRequestProperty("Accept-Language", "zh-TW,zh;q=0.9");
-                conn.setInstanceFollowRedirects(true);
-                String referer;
-                if (imageUrl.contains("yec.tw") || imageUrl.contains("yahoo")) referer = "https://tw.buy.yahoo.com/";
-                else if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) referer = "https://24h.pchome.com.tw/";
-                else if (imageUrl.contains("momo")) referer = "https://www.momoshop.com.tw/";
-                else referer = "https://www.books.com.tw/";
-                conn.setRequestProperty("Referer", referer);
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                conn.connect();
-                if (conn.getResponseCode() != 200) return null;
-                java.io.InputStream is = conn.getInputStream();
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int n;
-                while ((n = is.read(buffer)) != -1) baos.write(buffer, 0, n);
-                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(baos.toByteArray());
-                BufferedImage image = ImageIO.read(bais);
-                if (image == null) return null;
-                Image scaled = scaleImage(image, 220, 260);
-                return new ImageIcon(scaled);
+        imageLabel.setText("選取商品後顯示圖片");
+        return;
+    }
+
+    String imageUrl = product.getImageUrl();
+    imageTitleLabel.setText("商品圖片");
+    imageLabel.setIcon(null);
+
+    if (imageUrl == null || imageUrl.trim().isEmpty() || imageUrl.startsWith("data:")) {
+        imageLabel.setText("此商品沒有圖片");
+        return;
+    }
+
+    imageLabel.setText("圖片載入中...");
+
+    SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
+        @Override
+        protected BufferedImage doInBackground() throws Exception {
+            ImageIO.scanForPlugins();
+
+            java.net.HttpURLConnection conn =
+                    (java.net.HttpURLConnection) new java.net.URL(imageUrl).openConnection();
+
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            conn.setRequestProperty("Accept", "image/jpeg,image/png,image/gif,image/webp,*/*");
+
+            if (imageUrl.contains("yec.tw") || imageUrl.contains("yahoo")) {
+                conn.setRequestProperty("Referer", "https://tw.buy.yahoo.com/");
+            } else if (imageUrl.contains("pchome") || imageUrl.contains("ecimg")) {
+                conn.setRequestProperty("Referer", "https://24h.pchome.com.tw/");
+            } else if (imageUrl.contains("momo")) {
+                conn.setRequestProperty("Referer", "https://www.momoshop.com.tw/");
+            } else {
+                conn.setRequestProperty("Referer", "https://www.books.com.tw/");
             }
 
-            @Override
-            protected void done() {
-                try {
-                    ImageIcon icon = get();
-                    if (icon == null) {
-                        imageLabel.setText("圖片無法載入");
-                        return;
-                    }
-                    imageLabel.setText("");
-                    imageLabel.setIcon(icon);
-                } catch (Exception ex) {
-                    imageLabel.setText("圖片載入失敗");
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+
+            if (conn.getResponseCode() != 200) return null;
+
+            return ImageIO.read(conn.getInputStream());
+        }
+
+        @Override
+        protected void done() {
+            try {
+                currentPreviewImage = get();
+
+                if (currentPreviewImage == null) {
+                    imageLabel.setText("圖片無法載入");
+                    imageLabel.setIcon(null);
+                    return;
                 }
+
+                imageLabel.setText("");
+                updatePreviewImage();
+
+            } catch (Exception ex) {
+                imageLabel.setText("圖片載入失敗");
+                imageLabel.setIcon(null);
             }
-        };
-        worker.execute();
-    }
+        }
+    };
+
+    worker.execute();
+}
 
     private Image scaleImage(BufferedImage image, int maxWidth, int maxHeight) {
         int width = image.getWidth();
@@ -1029,7 +1076,15 @@ public class MainUI extends JFrame {
         int newHeight = Math.max(1, (int) (height * scale));
         return image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
     }
+    private void updatePreviewImage() {
+    if (currentPreviewImage == null) return;
 
+    int maxWidth = Math.max(1, imageLabel.getWidth() - 24);
+    int maxHeight = Math.max(1, imageLabel.getHeight() - 24);
+
+    Image scaled = scaleImage(currentPreviewImage, maxWidth, maxHeight);
+    imageLabel.setIcon(new ImageIcon(scaled));
+}
     private void openSelectedProduct() {
         if (selectedProduct == null) {
             JOptionPane.showMessageDialog(this, "請先選擇一個商品");
@@ -1083,7 +1138,36 @@ public class MainUI extends JFrame {
             g2.dispose();
         }
     }
+    static class ScrollableWrapPanel extends JPanel implements Scrollable {
+    public ScrollableWrapPanel(LayoutManager layout) {
+        super(layout);
+    }
 
+    @Override
+    public Dimension getPreferredScrollableViewportSize() {
+        return getPreferredSize();
+    }
+
+    @Override
+    public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+        return 24;
+    }
+
+    @Override
+    public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+        return 120;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        return true;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+        return false;
+    }
+}
     static class WrapLayout extends FlowLayout {
         public WrapLayout(int align, int hgap, int vgap) { super(align, hgap, vgap); }
         @Override

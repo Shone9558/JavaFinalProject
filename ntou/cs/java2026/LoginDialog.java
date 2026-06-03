@@ -7,9 +7,10 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 public class LoginDialog extends JDialog {
-    private final JTextField usernameField = new JTextField(18);
-    private final JPasswordField passwordField = new JPasswordField(18);
-    private final JLabel messageLabel = new JLabel("請登入或註冊新帳號");
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+    private JLabel messageLabel;
+
     private boolean loginSuccess = false;
     private int userId = -1;
     private String username = "";
@@ -17,22 +18,23 @@ public class LoginDialog extends JDialog {
     public LoginDialog(Frame owner) {
         super(owner, "使用者登入", true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(420, 260);
         setResizable(false);
-        setLocationRelativeTo(owner);
+
         initLayout();
+
+        pack();
+        setMinimumSize(new Dimension(500, 320));
+        setLocationRelativeTo(owner);
     }
 
     private void initLayout() {
+        getContentPane().removeAll();
+
         Font base = new Font("Microsoft JhengHei", Font.PLAIN, 14);
         Font titleFont = new Font("Microsoft JhengHei", Font.BOLD, 22);
-        UIManager.put("Label.font", base);
-        UIManager.put("Button.font", new Font("Microsoft JhengHei", Font.BOLD, 14));
-        UIManager.put("TextField.font", base);
-        UIManager.put("PasswordField.font", base);
 
         JPanel root = new JPanel(new BorderLayout(12, 12));
-        root.setBorder(new EmptyBorder(20, 24, 20, 24));
+        root.setBorder(new EmptyBorder(28, 28, 28, 28));
         root.setBackground(new Color(247, 242, 234));
         setContentPane(root);
 
@@ -43,38 +45,54 @@ public class LoginDialog extends JDialog {
 
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
+
+        usernameField = new JTextField(18);
+        passwordField = new JPasswordField(18);
+        messageLabel = new JLabel("請登入或註冊新帳號");
+
+        usernameField.setFont(base);
+        passwordField.setFont(base);
+        usernameField.setPreferredSize(new Dimension(230, 28));
+        passwordField.setPreferredSize(new Dimension(230, 28));
+        messageLabel.setFont(base);
+        messageLabel.setForeground(new Color(125, 113, 100));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(6, 6, 6, 6);
+        gbc.insets = new Insets(7, 7, 7, 7);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 0;
         gbc.gridy = 0;
         form.add(new JLabel("帳號"), gbc);
+
         gbc.gridx = 1;
         form.add(usernameField, gbc);
 
         gbc.gridx = 0;
         gbc.gridy = 1;
         form.add(new JLabel("密碼"), gbc);
+
         gbc.gridx = 1;
         form.add(passwordField, gbc);
 
         gbc.gridx = 0;
         gbc.gridy = 2;
         gbc.gridwidth = 2;
-        messageLabel.setForeground(new Color(125, 113, 100));
         form.add(messageLabel, gbc);
 
         root.add(form, BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         buttons.setOpaque(false);
+
+        JButton guestButton = new JButton("訪客進入");
         JButton registerButton = new JButton("註冊");
         JButton loginButton = new JButton("登入");
-        JButton guestButton = new JButton("訪客進入");
+
         buttons.add(guestButton);
         buttons.add(registerButton);
         buttons.add(loginButton);
+
         root.add(buttons, BorderLayout.SOUTH);
 
         loginButton.addActionListener(e -> login());
@@ -86,9 +104,11 @@ public class LoginDialog extends JDialog {
     private void login() {
         String name = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
+
         if (!validateInput(name, password)) return;
 
         int id = DatabaseManager.loginUser(name, password);
+
         if (id > 0) {
             loginSuccess = true;
             userId = id;
@@ -103,6 +123,7 @@ public class LoginDialog extends JDialog {
     private void register() {
         String name = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
+
         if (!validateInput(name, password)) return;
 
         if (DatabaseManager.usernameExists(name)) {
@@ -112,6 +133,7 @@ public class LoginDialog extends JDialog {
         }
 
         int id = DatabaseManager.registerUser(name, password);
+
         if (id > 0) {
             loginSuccess = true;
             userId = id;
@@ -130,16 +152,19 @@ public class LoginDialog extends JDialog {
             messageLabel.setForeground(new Color(170, 57, 57));
             return false;
         }
+
         if (name.length() < 3) {
             messageLabel.setText("帳號至少需要 3 個字元");
             messageLabel.setForeground(new Color(170, 57, 57));
             return false;
         }
+
         if (password.length() < 4) {
             messageLabel.setText("密碼至少需要 4 個字元");
             messageLabel.setForeground(new Color(170, 57, 57));
             return false;
         }
+
         return true;
     }
 
