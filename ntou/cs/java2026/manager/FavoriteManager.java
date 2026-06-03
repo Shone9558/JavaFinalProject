@@ -16,11 +16,15 @@ import java.io.IOException;
 public class FavoriteManager {
 
     private List<Product> favoriteProducts;
+    private int userId;
 
     public FavoriteManager() {
+        this(0);
+    }
 
+    public FavoriteManager(int userId) {
+        this.userId = userId;
         favoriteProducts = new ArrayList<>();
-
         loadFavoriteProducts();
     }
 
@@ -215,12 +219,12 @@ public class FavoriteManager {
 
     public void saveFavoriteProducts() {
 
-        DatabaseManager.saveFavorites(favoriteProducts);
+        DatabaseManager.saveFavorites(userId, favoriteProducts);
 
         try (
                 BufferedWriter writer =
                         new BufferedWriter(
-                                new FileWriter("favorites.csv")
+                                new FileWriter(getFallbackFileName())
                         )
         ) {
 
@@ -249,7 +253,7 @@ public class FavoriteManager {
     public void loadFavoriteProducts() {
 
         if (DatabaseManager.isAvailable()) {
-            favoriteProducts.addAll(DatabaseManager.loadFavorites());
+            favoriteProducts.addAll(DatabaseManager.loadFavorites(userId));
             if (!favoriteProducts.isEmpty()) {
                 System.out.println("已從 SQLite 載入 " + favoriteProducts.size() + " 筆收藏商品。");
             }
@@ -259,7 +263,7 @@ public class FavoriteManager {
         try (
                 BufferedReader reader =
                         new BufferedReader(
-                                new FileReader("favorites.csv")
+                                new FileReader(getFallbackFileName())
                         )
         ) {
 
@@ -316,6 +320,10 @@ public class FavoriteManager {
                     "收藏商品檔案格式錯誤。"
             );
         }
+    }
+
+    private String getFallbackFileName() {
+        return userId > 0 ? "favorites_user_" + userId + ".csv" : "favorites.csv";
     }
 
     private String toCsvLine(Product product) {

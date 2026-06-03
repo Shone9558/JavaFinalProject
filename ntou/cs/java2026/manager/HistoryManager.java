@@ -12,11 +12,15 @@ import java.util.List;
 
 public class HistoryManager {
     private List<String> searchHistory;
+    private int userId;
 
     public HistoryManager() {
+        this(0);
+    }
 
+    public HistoryManager(int userId) {
+        this.userId = userId;
         searchHistory = new ArrayList<>();
-
         loadSearchHistory();
     }
 
@@ -88,12 +92,12 @@ public class HistoryManager {
 
     public void saveSearchHistory() {
 
-        DatabaseManager.saveHistory(searchHistory);
+        DatabaseManager.saveHistory(userId, searchHistory);
 
         try (
                 BufferedWriter writer =
                         new BufferedWriter(
-                                new FileWriter("search_history.txt")
+                                new FileWriter(getFallbackFileName())
                         )
         ) {
 
@@ -116,7 +120,7 @@ public class HistoryManager {
     public void loadSearchHistory() {
 
         if (DatabaseManager.isAvailable()) {
-            searchHistory.addAll(DatabaseManager.loadHistory());
+            searchHistory.addAll(DatabaseManager.loadHistory(userId));
             if (!searchHistory.isEmpty()) {
                 System.out.println("已從 SQLite 載入 " + searchHistory.size() + " 筆搜尋歷史紀錄。");
             }
@@ -126,7 +130,7 @@ public class HistoryManager {
         try (
                 BufferedReader reader =
                         new BufferedReader(
-                                new FileReader("search_history.txt")
+                                new FileReader(getFallbackFileName())
                         )
         ) {
 
@@ -153,6 +157,10 @@ public class HistoryManager {
 
             // 第一次執行通常還沒有檔案
         }
+    }
+
+    private String getFallbackFileName() {
+        return userId > 0 ? "search_history_user_" + userId + ".txt" : "search_history.txt";
     }
 
     public List<String> getSearchHistory() {

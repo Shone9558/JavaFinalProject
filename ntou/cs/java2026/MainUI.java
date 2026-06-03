@@ -47,8 +47,7 @@ public class MainUI extends JFrame {
     private final JTextField maxPriceField = new JTextField();
 
     private final JButton searchButton = new JButton("搜尋");
-    private final JButton favoriteButton = new JButton("加入收藏");
-    private final JButton deleteFavoriteButton = new JButton("刪除收藏");
+    private final JButton logoutButton = new JButton("登出");
     private final JButton refreshFavoritePriceButton = new JButton("刷新收藏價格");
     private final JButton exportFavoriteCsvButton = new JButton("匯出 CSV");
     private final JButton openButton = new JButton("開啟商品頁");
@@ -67,18 +66,32 @@ public class MainUI extends JFrame {
     private final JPanel favoriteGrid = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 16));
 
     private final List<Product> allProducts = new ArrayList<>();
-    private final FavoriteManager favoriteManager = new FavoriteManager();
-    private final List<Product> favoriteProducts = favoriteManager.getFavoriteProducts();
-    private final HistoryManager historyManager = new HistoryManager();
-    private final List<String> searchHistory = historyManager.getSearchHistory();
+    private FavoriteManager favoriteManager;
+    private List<Product> favoriteProducts;
+    private HistoryManager historyManager;
+    private List<String> searchHistory;
 
     private final PriceChartPanel priceChartPanel = new PriceChartPanel();
 
     private Product selectedProduct = null;
     private boolean selectedFromFavorite = false;
+    private boolean isSearching = false;
+    private final int currentUserId;
+    private final String currentUsername;
 
     public MainUI() {
-        setTitle("智慧購物比價追蹤器");
+        this(0, "訪客");
+    }
+
+    public MainUI(int userId, String username) {
+        this.currentUserId = userId;
+        this.currentUsername = username == null || username.trim().isEmpty() ? "訪客" : username.trim();
+        this.favoriteManager = new FavoriteManager(currentUserId);
+        this.favoriteProducts = favoriteManager.getFavoriteProducts();
+        this.historyManager = new HistoryManager(currentUserId);
+        this.searchHistory = historyManager.getSearchHistory();
+
+        setTitle("智慧購物比價追蹤器 - " + this.currentUsername);
         setSize(1180, 760);
         setMinimumSize(new Dimension(1050, 680));
         setLocationRelativeTo(null);
@@ -149,13 +162,20 @@ public class MainUI extends JFrame {
         title.setFont(new Font("Microsoft JhengHei", Font.BOLD, 30));
         title.setForeground(MAIN_DARK);
 
-        JLabel subtitle = new JLabel("用更舒服的方式，找到真正值得買的商品");
+        JLabel subtitle = new JLabel("目前登入：" + currentUsername + "｜用更舒服的方式，找到真正值得買的商品");
         subtitle.setFont(new Font("Microsoft JhengHei", Font.PLAIN, 15));
         subtitle.setForeground(MUTED);
 
         titleBox.add(title);
         titleBox.add(subtitle);
         hero.add(titleBox, BorderLayout.WEST);
+
+        JPanel accountBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        accountBox.setOpaque(false);
+        logoutButton.setToolTipText("登出並回到登入畫面");
+        styleSecondaryButton(logoutButton);
+        accountBox.add(logoutButton);
+        hero.add(accountBox, BorderLayout.EAST);
 
         JPanel searchBox = new JPanel(new BorderLayout(12, 10));
         searchBox.setOpaque(false);
@@ -212,14 +232,10 @@ public class MainUI extends JFrame {
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
-        styleSecondaryButton(favoriteButton);
         styleSecondaryButton(openButton);
-        styleSecondaryButton(deleteFavoriteButton);
         styleSecondaryButton(refreshFavoritePriceButton);
         styleSecondaryButton(exportFavoriteCsvButton);
         styleSecondaryButton(showChartButton);
-        buttonPanel.add(favoriteButton);
-        buttonPanel.add(deleteFavoriteButton);
         buttonPanel.add(refreshFavoritePriceButton);
         buttonPanel.add(exportFavoriteCsvButton);
         buttonPanel.add(showChartButton);
@@ -449,8 +465,6 @@ public class MainUI extends JFrame {
 
     private void initEvents() {
         searchButton.addActionListener(e -> searchProducts());
-        favoriteButton.addActionListener(e -> addFavorite());
-        deleteFavoriteButton.addActionListener(e -> removeFavorite());
         refreshFavoritePriceButton.addActionListener(e -> refreshFavoritePrices());
         exportFavoriteCsvButton.addActionListener(e -> exportFavoritesCsv());
         openButton.addActionListener(e -> openSelectedProduct());
@@ -458,6 +472,7 @@ public class MainUI extends JFrame {
         deleteHistoryButton.addActionListener(e -> deleteSelectedHistory());
         clearHistoryButton.addActionListener(e -> clearSearchHistory());
         showChartButton.addActionListener(e -> showPriceChart());
+        logoutButton.addActionListener(e -> logout());
 
         keywordField.addActionListener(e -> searchProducts());
 
@@ -467,6 +482,19 @@ public class MainUI extends JFrame {
                 if (e.getClickCount() == 2) searchFromSelectedHistory();
             }
         });
+    }
+
+    private void logout() {
+        if (isSearching) {
+            JOptionPane.showMessageDialog(this, "目前仍在搜尋中，請等搜尋完成後再登出。", "登出提醒", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int option = JOptionPane.showConfirmDialog(this, "確定要登出並回到登入畫面嗎？", "登出", JOptionPane.YES_NO_OPTION);
+        if (option != JOptionPane.YES_OPTION) return;
+
+        dispose();
+        showLoginWindow();
     }
 
     private void showPriceChart() {
@@ -484,6 +512,11 @@ public class MainUI extends JFrame {
     }
 
     private void searchProducts() {
+        if (isSearching) {
+            statusLabel.setText("正在搜尋中，請等待目前搜尋完成");
+            return;
+        }
+
         String keyword = keywordField.getText().trim();
         if (keyword.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先輸入搜尋關鍵字", "輸入提醒", JOptionPane.WARNING_MESSAGE);
@@ -491,24 +524,36 @@ public class MainUI extends JFrame {
             return;
         }
 
-        if (!booksCheck.isSelected() && !pchomeCheck.isSelected() && !momoCheck.isSelected() && !yahooCheck.isSelected()) {
+        final boolean searchBooks = booksCheck.isSelected();
+        final boolean searchPchome = pchomeCheck.isSelected();
+        final boolean searchMomo = momoCheck.isSelected();
+        final boolean searchYahoo = yahooCheck.isSelected();
+
+        if (!searchBooks && !searchPchome && !searchMomo && !searchYahoo) {
             JOptionPane.showMessageDialog(this, "請至少選擇一個搜尋平台", "平台提醒", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
+        final double min;
+        final double max;
+        final String sortType;
+
         try {
-            double min = parseOptionalPrice(minPriceField.getText(), "最低價格");
-            double max = parseOptionalPrice(maxPriceField.getText(), "最高價格");
+            min = parseOptionalPrice(minPriceField.getText(), "最低價格");
+            max = parseOptionalPrice(maxPriceField.getText(), "最高價格");
             if (min > 0 && max > 0 && min > max) {
                 JOptionPane.showMessageDialog(this, "最低價格不能大於最高價格", "價格提醒", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            sortType = (String) sortBox.getSelectedItem();
         } catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "價格格式錯誤", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
+        isSearching = true;
         setButtonsEnabled(false);
+        setSearchControlsEnabled(false);
         resultGrid.removeAll();
         allProducts.clear();
         selectedProduct = null;
@@ -522,30 +567,59 @@ public class MainUI extends JFrame {
             @Override
             protected List<Product> doInBackground() {
                 List<Product> list = new ArrayList<>();
+                int booksCount = 0;
+                int pchomeCount = 0;
+                int momoCount = 0;
+                int yahooCount = 0;
 
-                if (booksCheck.isSelected()) {
+                if (searchBooks) {
                     publish("正在搜尋博客來...");
-                    try { list.addAll(new BooksCrawler().search(keyword)); }
-                    catch (Exception ex) { publish("博客來搜尋失敗，已略過：" + ex.getMessage()); }
+                    try {
+                        List<Product> result = new BooksCrawler().search(keyword);
+                        booksCount = result.size();
+                        list.addAll(result);
+                        publish("博客來完成：" + booksCount + " 筆");
+                    } catch (Exception ex) {
+                        publish("博客來搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
-                if (pchomeCheck.isSelected()) {
+                if (searchPchome) {
                     publish("正在搜尋 PChome...");
-                    try { list.addAll(new PChomeCrawler().search(keyword)); }
-                    catch (Exception ex) { publish("PChome 搜尋失敗，已略過：" + ex.getMessage()); }
+                    try {
+                        List<Product> result = new PChomeCrawler().search(keyword);
+                        pchomeCount = result.size();
+                        list.addAll(result);
+                        publish("PChome 完成：" + pchomeCount + " 筆");
+                    } catch (Exception ex) {
+                        publish("PChome 搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
-                if (momoCheck.isSelected()) {
+                if (searchMomo) {
                     publish("正在搜尋 momo...");
-                    try { list.addAll(new MomoCrawler().search(keyword)); }
-                    catch (Exception ex) { publish("momo 搜尋失敗，已略過：" + ex.getMessage()); }
+                    try {
+                        List<Product> result = new MomoCrawler().search(keyword);
+                        momoCount = result.size();
+                        list.addAll(result);
+                        publish("momo 完成：" + momoCount + " 筆");
+                    } catch (Exception ex) {
+                        publish("momo 搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
-                if (yahooCheck.isSelected()) {
+                if (searchYahoo) {
                     publish("正在搜尋 Yahoo購物...");
-                    try { list.addAll(new YahooCrawler().search(keyword)); }
-                    catch (Exception ex) { publish("Yahoo購物搜尋失敗，已略過：" + ex.getMessage()); }
+                    try {
+                        List<Product> result = new YahooCrawler().search(keyword);
+                        yahooCount = result.size();
+                        list.addAll(result);
+                        publish("Yahoo購物完成：" + yahooCount + " 筆");
+                    } catch (Exception ex) {
+                        publish("Yahoo購物搜尋失敗，已略過：" + ex.getMessage());
+                    }
                 }
 
-                publish("正在套用篩選與排序...");
-                return applyFilterAndSort(list);
+                publish("平台統計：博客來 " + booksCount + " 筆，PChome " + pchomeCount + " 筆，momo " + momoCount + " 筆，Yahoo購物 " + yahooCount + " 筆");
+                publish("正在去除重複商品並套用篩選與排序...");
+                return applyFilterAndSort(removeDuplicateProducts(list), min, max, sortType);
             }
 
             @Override
@@ -568,7 +642,9 @@ public class MainUI extends JFrame {
                     statusLabel.setText("搜尋失敗：" + ex.getMessage());
                     JOptionPane.showMessageDialog(MainUI.this, "搜尋失敗：" + ex.getMessage(), "搜尋錯誤", JOptionPane.ERROR_MESSAGE);
                 } finally {
+                    isSearching = false;
                     setButtonsEnabled(true);
+                    setSearchControlsEnabled(true);
                 }
             }
         };
@@ -577,18 +653,43 @@ public class MainUI extends JFrame {
 
     private void setButtonsEnabled(boolean enabled) {
         searchButton.setEnabled(enabled);
-        favoriteButton.setEnabled(enabled);
+        logoutButton.setEnabled(enabled);
         openButton.setEnabled(enabled);
-        deleteFavoriteButton.setEnabled(enabled);
         refreshFavoritePriceButton.setEnabled(enabled);
         exportFavoriteCsvButton.setEnabled(enabled);
         showChartButton.setEnabled(enabled);
     }
 
-    private List<Product> applyFilterAndSort(List<Product> list) {
-        double min = parseOptionalPrice(minPriceField.getText());
-        double max = parseOptionalPrice(maxPriceField.getText());
+    private void setSearchControlsEnabled(boolean enabled) {
+        keywordField.setEnabled(enabled);
+        booksCheck.setEnabled(enabled);
+        pchomeCheck.setEnabled(enabled);
+        momoCheck.setEnabled(enabled);
+        yahooCheck.setEnabled(enabled);
+        minPriceField.setEnabled(enabled);
+        maxPriceField.setEnabled(enabled);
+        sortBox.setEnabled(enabled);
+        useHistoryButton.setEnabled(enabled);
+        deleteHistoryButton.setEnabled(enabled);
+        clearHistoryButton.setEnabled(enabled);
+    }
 
+    private List<Product> removeDuplicateProducts(List<Product> list) {
+        List<Product> result = new ArrayList<>();
+        for (Product product : list) {
+            boolean exists = false;
+            for (Product added : result) {
+                if (isSameProduct(added, product)) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) result.add(product);
+        }
+        return result;
+    }
+
+    private List<Product> applyFilterAndSort(List<Product> list, double min, double max, String sort) {
         List<Product> filtered = new ArrayList<>();
         for (Product product : list) {
             boolean matchMin = min == 0 || product.getPrice() >= min;
@@ -596,7 +697,6 @@ public class MainUI extends JFrame {
             if (matchMin && matchMax) filtered.add(product);
         }
 
-        String sort = (String) sortBox.getSelectedItem();
         if ("價格由高到低".equals(sort)) filtered.sort((a, b) -> Double.compare(b.getPrice(), a.getPrice()));
         else if ("平台名稱".equals(sort)) filtered.sort(Comparator.comparing(Product::getPlatform));
         else if ("商品名稱".equals(sort)) filtered.sort(Comparator.comparing(Product::getName));
@@ -942,8 +1042,18 @@ public class MainUI extends JFrame {
         }
     }
 
+    private static void showLoginWindow() {
+        LoginDialog dialog = new LoginDialog(null);
+        dialog.setVisible(true);
+        if (dialog.isLoginSuccess()) {
+            new MainUI(dialog.getUserId(), dialog.getUsername()).setVisible(true);
+        } else {
+            System.exit(0);
+        }
+    }
+
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new MainUI().setVisible(true));
+        SwingUtilities.invokeLater(MainUI::showLoginWindow);
     }
 
     static class HeartIcon implements Icon {
