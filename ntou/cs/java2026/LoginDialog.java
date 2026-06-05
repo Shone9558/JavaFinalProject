@@ -38,7 +38,7 @@ public class LoginDialog extends JDialog {
         root.setBackground(new Color(247, 242, 234));
         setContentPane(root);
 
-        JLabel title = new JLabel("智慧購物比價追蹤器");
+        JLabel title = new JLabel("智慧購物比價平台");
         title.setFont(titleFont);
         title.setForeground(new Color(88, 65, 45));
         root.add(title, BorderLayout.NORTH);

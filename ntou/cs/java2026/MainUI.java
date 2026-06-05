@@ -98,7 +98,7 @@ public class MainUI extends JFrame {
         this.historyManager = new HistoryManager(currentUserId);
         this.searchHistory = historyManager.getSearchHistory();
 
-        setTitle("智慧購物比價追蹤器 - " + this.currentUsername);
+        setTitle("智慧購物比價平台 - " + this.currentUsername);
         setSize(1180, 760);
         setMinimumSize(new Dimension(1050, 680));
         setLocationRelativeTo(null);
@@ -165,7 +165,7 @@ public class MainUI extends JFrame {
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 0, 4));
         titleBox.setOpaque(false);
 
-        JLabel title = new JLabel("智慧購物比價追蹤器");
+        JLabel title = new JLabel("智慧購物比價平台");
         title.setFont(new Font("Microsoft JhengHei", Font.BOLD, 30));
         title.setForeground(MAIN_DARK);
 
