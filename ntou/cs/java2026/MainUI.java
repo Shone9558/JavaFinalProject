@@ -668,12 +668,14 @@ public class MainUI extends JFrame {
             protected void done() {
                 try {
                     allProducts.addAll(get());
+                    int priceChangeCount = checkPriceChangeNotifications(allProducts);
                     refreshResultCards();
                     if (allProducts.isEmpty()) {
                         statusLabel.setText("搜尋完成，但沒有符合條件的商品");
                         JOptionPane.showMessageDialog(MainUI.this, "沒有找到符合條件的商品，可以換關鍵字或放寬價格範圍。", "搜尋結果", JOptionPane.INFORMATION_MESSAGE);
                     } else {
-                        statusLabel.setText("搜尋完成，共找到 " + allProducts.size() + " 筆商品");
+                        String changeText = priceChangeCount > 0 ? "，其中 " + priceChangeCount + " 筆價格變動已提醒" : "";
+                        statusLabel.setText("搜尋完成，共找到 " + allProducts.size() + " 筆商品" + changeText);
                     }
                 } catch (Exception ex) {
                     statusLabel.setText("搜尋失敗：" + ex.getMessage());
@@ -756,6 +758,18 @@ public class MainUI extends JFrame {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(fieldName + "請輸入數字，例如 100 或 1000");
         }
+    }
+
+    private int checkPriceChangeNotifications(List<Product> products) {
+        int changedCount = 0;
+        if (products == null || products.isEmpty()) return changedCount;
+
+        for (Product product : products) {
+            if (PriceChangeNotifier.checkAndNotify(product, currentUserId)) {
+                changedCount++;
+            }
+        }
+        return changedCount;
     }
 
     private void refreshResultCards() {
@@ -894,9 +908,18 @@ public class MainUI extends JFrame {
                         List<Product> candidates = searchSamePlatform(oldProduct);
                         Product matched = findBestMatch(oldProduct, candidates);
                         if (matched != null) {
-                            oldProduct.setPrice(matched.getPrice());
+                            double oldPrice = oldProduct.getPrice();
+                            double newPrice = matched.getPrice();
+
                             if (matched.getImageUrl() != null && !matched.getImageUrl().isEmpty()) oldProduct.setImageUrl(matched.getImageUrl());
                             if (matched.getUrl() != null && !matched.getUrl().isEmpty()) oldProduct.setUrl(matched.getUrl());
+
+                            if (PriceChangeNotifier.isPriceChanged(oldPrice, newPrice)) {
+                                PriceChangeNotifier.notifyDirectChange(oldProduct, oldPrice, newPrice, currentUserId);
+                            }
+
+                            oldProduct.setPrice(newPrice);
+                            PriceChangeNotifier.rememberPrice(oldProduct, currentUserId);
                             updatedCount++;
                         }
                     } catch (Exception ex) {
